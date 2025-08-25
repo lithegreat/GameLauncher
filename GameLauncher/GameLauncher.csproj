@@ -29,7 +29,6 @@
   
   <ItemGroup>
     <Page Remove="AddGameDialog.xaml" />
-    <Page Remove="AddGameWindow.xaml" />
   </ItemGroup>
 
   <!-- Assets Files -->
@@ -64,9 +63,6 @@
   
   <ItemGroup>
     <None Update="AddGameDialog.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </None>
-    <None Update="AddGameWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </None>
   </ItemGroup>
