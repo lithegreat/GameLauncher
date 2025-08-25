@@ -26,10 +26,6 @@
     <PackageDescription>一个现代化的游戏启动器，支持游戏管理和快速启动</PackageDescription>
     <PackagePublisherDisplayName>lithegreat</PackagePublisherDisplayName>
   </PropertyGroup>
-  
-  <ItemGroup>
-    <Page Remove="AddGameDialog.xaml" />
-  </ItemGroup>
 
   <!-- Assets Files -->
   <ItemGroup>
@@ -59,12 +55,6 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4948" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.7.250606001" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
-  </ItemGroup>
-  
-  <ItemGroup>
-    <None Update="AddGameDialog.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </None>
   </ItemGroup>
 
   <!--
