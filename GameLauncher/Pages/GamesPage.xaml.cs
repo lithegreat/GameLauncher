@@ -21,7 +21,7 @@ namespace GameLauncher.Pages
         public ObservableCollection<CustomDataObject> Items { get; } = new ObservableCollection<CustomDataObject>();
         private const string GamesDataFileName = "games.json";
         private bool _isDeleteMode = false;
-        private CustomDataObject _contextMenuGame = null;
+        private CustomDataObject? _contextMenuGame = null;
 
         public GamesPage()
         {
@@ -125,7 +125,7 @@ namespace GameLauncher.Pages
                 }
 
                 var directory = Path.GetDirectoryName(game.ExecutablePath);
-                if (Directory.Exists(directory))
+                if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
                 {
                     var startInfo = new ProcessStartInfo
                     {
@@ -283,16 +283,19 @@ namespace GameLauncher.Pages
                     picker.FileTypeFilter.Add(".exe");
 
                     var mainWindow = App.Current.MainWindow;
-                    var hWnd = WindowNative.GetWindowHandle(mainWindow);
-                    InitializeWithWindow.Initialize(picker, hWnd);
-
-                    var file = await picker.PickSingleFileAsync();
-                    if (file != null)
+                    if (mainWindow != null)
                     {
-                        pathBox.Text = file.Path;
-                        if (string.IsNullOrWhiteSpace(gameNameBox.Text))
+                        var hWnd = WindowNative.GetWindowHandle(mainWindow);
+                        InitializeWithWindow.Initialize(picker, hWnd);
+
+                        var file = await picker.PickSingleFileAsync();
+                        if (file != null)
                         {
-                            gameNameBox.Text = Path.GetFileNameWithoutExtension(file.Name);
+                            pathBox.Text = file.Path;
+                            if (string.IsNullOrWhiteSpace(gameNameBox.Text))
+                            {
+                                gameNameBox.Text = Path.GetFileNameWithoutExtension(file.Name);
+                            }
                         }
                     }
                 }

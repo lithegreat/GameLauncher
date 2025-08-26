@@ -67,7 +67,7 @@ namespace GameLauncher
             }
         }
 
-        private async void MainWindow_Activated(object sender, WindowActivatedEventArgs e)
+        private void MainWindow_Activated(object sender, WindowActivatedEventArgs e)
         {
             if (!_initialized && e.WindowActivationState != WindowActivationState.Deactivated)
             {
@@ -125,8 +125,11 @@ namespace GameLauncher
                 if (args.SelectedItemContainer != null)
                 {
                     var navItemTag = args.SelectedItemContainer.Tag?.ToString();
-                    Debug.WriteLine($"Navigation selection changed to: {navItemTag}");
-                    NavigateToPage(navItemTag);
+                    if (!string.IsNullOrEmpty(navItemTag))
+                    {
+                        Debug.WriteLine($"Navigation selection changed to: {navItemTag}");
+                        NavigateToPage(navItemTag);
+                    }
                 }
             }
             catch (Exception ex)
@@ -136,26 +139,30 @@ namespace GameLauncher
             }
         }
 
-        private void NavigateToPage(string navItemTag)
+        private void NavigateToPage(string? navItemTag)
         {
             try
             {
-                Type pageType = null;
-
-                switch (navItemTag)
+                if (string.IsNullOrEmpty(navItemTag))
                 {
-                    case "GamesPage":
-                        pageType = typeof(GamesPage);
-                        break;
-                    case "SettingsPage":
-                        pageType = typeof(SettingsPage);
-                        break;
-                    default:
-                        Debug.WriteLine($"Unknown navigation tag: {navItemTag}");
-                        break;
+                    Debug.WriteLine("Navigation tag is null or empty");
+                    return;
                 }
 
-                if (pageType != null && contentFrame.CurrentSourcePageType != pageType)
+                Type? pageType = navItemTag switch
+                {
+                    "GamesPage" => typeof(GamesPage),
+                    "SettingsPage" => typeof(SettingsPage),
+                    _ => null
+                };
+
+                if (pageType == null)
+                {
+                    Debug.WriteLine($"Unknown navigation tag: {navItemTag}");
+                    return;
+                }
+
+                if (contentFrame.CurrentSourcePageType != pageType)
                 {
                     Debug.WriteLine($"Attempting to navigate to: {pageType.Name}");
                     

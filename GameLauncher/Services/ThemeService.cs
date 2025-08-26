@@ -15,7 +15,7 @@ namespace GameLauncher.Services
                 System.Diagnostics.Debug.WriteLine("ThemeService.GetSavedTheme started");
                 
                 var localSettings = ApplicationData.Current.LocalSettings;
-                var savedTheme = localSettings.Values[ThemeSettingKey] as string ?? "Default";
+                var savedTheme = (string?)localSettings.Values[ThemeSettingKey] ?? "Default";
                 
                 System.Diagnostics.Debug.WriteLine($"Retrieved saved theme string: {savedTheme}");
 
@@ -116,7 +116,7 @@ namespace GameLauncher.Services
                 System.Diagnostics.Debug.WriteLine("ThemeService.GetSavedThemeString started");
                 
                 var localSettings = ApplicationData.Current.LocalSettings;
-                var result = localSettings.Values[ThemeSettingKey] as string ?? "Default";
+                var result = (string?)localSettings.Values[ThemeSettingKey] ?? "Default";
                 
                 System.Diagnostics.Debug.WriteLine($"Retrieved theme string: {result}");
                 return result;

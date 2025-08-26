@@ -27,12 +27,12 @@ namespace GameLauncher
     /// </summary>
     public partial class App : Application
     {
-        private Window m_window;
+        private Window? m_window;
 
         /// <summary>
         /// Gets the main window of the application.
         /// </summary>
-        public Window MainWindow => m_window;
+        public Window? MainWindow => m_window;
 
         /// <summary>
         /// Gets the current App instance.
@@ -66,10 +66,12 @@ namespace GameLauncher
         {
             try
             {
+                if (m_window == null) return;
+                
                 var savedTheme = ThemeService.GetSavedTheme();
 
                 // Apply theme to the main window
-                if (m_window?.Content is FrameworkElement rootElement)
+                if (m_window.Content is FrameworkElement rootElement)
                 {
                     rootElement.RequestedTheme = savedTheme;
                 }
