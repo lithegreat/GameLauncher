@@ -12,6 +12,11 @@
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
     
+    <!-- Windows App SDK compatibility for unpackaged mode -->
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsPackageType>None</WindowsPackageType>
+    <DisableXbfLineInfo>true</DisableXbfLineInfo>
+    
     <!-- Application Info -->
     <ApplicationDisplayName>游戏启动器</ApplicationDisplayName>
     <ApplicationDescription>一个现代化的游戏启动器，支持游戏管理和快速启动</ApplicationDescription>

@@ -45,7 +45,46 @@ namespace GameLauncher
         /// </summary>
         public App()
         {
-            InitializeComponent();
+            try
+            {
+                // Initialize COM wrappers to prevent COM registration issues
+                WinRT.ComWrappersSupport.InitializeComWrappers();
+                
+                InitializeComponent();
+                
+                // Test data storage service on startup
+                TestDataStorageService();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"App initialization error: {ex.Message}");
+                throw;
+            }
+        }
+
+        private void TestDataStorageService()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("Testing DataStorageService...");
+                
+                // Test the data storage service
+                var testValue = DataStorageService.ReadSetting("TestKey", "DefaultValue");
+                System.Diagnostics.Debug.WriteLine($"DataStorageService test read: {testValue}");
+                
+                DataStorageService.WriteSetting("TestKey", "TestValue");
+                System.Diagnostics.Debug.WriteLine("DataStorageService test write completed");
+                
+                var verifyValue = DataStorageService.ReadSetting("TestKey", "DefaultValue");
+                System.Diagnostics.Debug.WriteLine($"DataStorageService test verify: {verifyValue}");
+                
+                System.Diagnostics.Debug.WriteLine($"DataStorageService working in mode: {(DataStorageService.IsPackaged ? "Packaged" : "Unpackaged")}");
+                System.Diagnostics.Debug.WriteLine($"DataStorageService local path: {DataStorageService.LocalDataPath}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"DataStorageService test failed: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -54,12 +93,21 @@ namespace GameLauncher
         /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            m_window = new MainWindow();
-            
-            // Apply saved theme before activating the window
-            ApplySavedTheme();
-            
-            m_window.Activate();
+            try
+            {
+                m_window = new MainWindow();
+                
+                // Apply saved theme before activating the window
+                ApplySavedTheme();
+                
+                m_window.Activate();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OnLaunched error: {ex.Message}");
+                // Create a basic error window if main window creation fails
+                ShowErrorWindow(ex);
+            }
         }
 
         private void ApplySavedTheme()
@@ -81,6 +129,30 @@ namespace GameLauncher
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ApplySavedTheme error: {ex.Message}");
+            }
+        }
+
+        private void ShowErrorWindow(Exception ex)
+        {
+            try
+            {
+                var errorWindow = new Window();
+                var grid = new Grid();
+                var textBlock = new TextBlock
+                {
+                    Text = $"Application failed to start:\n{ex.Message}",
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(20)
+                };
+                grid.Children.Add(textBlock);
+                errorWindow.Content = grid;
+                errorWindow.Title = "GameLauncher Error";
+                errorWindow.Activate();
+            }
+            catch
+            {
+                // If even error window fails, just exit
+                Environment.Exit(1);
             }
         }
     }

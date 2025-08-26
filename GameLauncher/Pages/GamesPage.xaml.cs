@@ -1234,63 +1234,64 @@ namespace GameLauncher.Pages
         {
             try
             {
-                var localFolder = ApplicationData.Current.LocalFolder;
-                var file = await localFolder.TryGetItemAsync(GamesDataFileName) as StorageFile;
+                System.Diagnostics.Debug.WriteLine("开始加载游戏数据");
                 
-                if (file != null)
+                var json = await DataStorageService.ReadTextFileAsync(GamesDataFileName);
+                
+                if (!string.IsNullOrEmpty(json))
                 {
-                    var json = await FileIO.ReadTextAsync(file);
+                    var options = new JsonSerializerOptions 
+                    { 
+                        WriteIndented = true,
+                        PropertyNameCaseInsensitive = true
+                    };
                     
-                    if (!string.IsNullOrEmpty(json))
+                    var gameDataList = JsonSerializer.Deserialize<GameDataJson[]>(json, options);
+                    
+                    if (gameDataList != null)
                     {
-                        var options = new JsonSerializerOptions 
-                        { 
-                            WriteIndented = true,
-                            PropertyNameCaseInsensitive = true
-                        };
+                        Items.Clear();
                         
-                        var gameDataList = JsonSerializer.Deserialize<GameDataJson[]>(json, options);
+                        // 按显示顺序排序然后添加到集合中
+                        var sortedGames = gameDataList
+                            .Where(g => g != null && !string.IsNullOrEmpty(g.Title))
+                            .OrderBy(g => g.DisplayOrder)
+                            .ToList();
                         
-                        if (gameDataList != null)
+                        foreach (var gameJson in sortedGames)
                         {
-                            Items.Clear();
+                            BitmapImage? iconImage = null;
                             
-                            // 按显示顺序排序，然后添加到集合中
-                            var sortedGames = gameDataList
-                                .Where(g => g != null && !string.IsNullOrEmpty(g.Title))
-                                .OrderBy(g => g.DisplayOrder)
-                                .ToList();
-                            
-                            foreach (var gameJson in sortedGames)
+                            // 为有可执行文件路径的游戏提取图标
+                            if (!string.IsNullOrEmpty(gameJson.ExecutablePath) && File.Exists(gameJson.ExecutablePath))
                             {
-                                BitmapImage? iconImage = null;
-                                
-                                // 为有可执行文件路径的游戏提取图标
-                                if (!string.IsNullOrEmpty(gameJson.ExecutablePath) && File.Exists(gameJson.ExecutablePath))
-                                {
-                                    iconImage = await IconExtractor.ExtractIconAsync(gameJson.ExecutablePath);
-                                }
-                                
-                                var game = new CustomDataObject
-                                {
-                                    Title = gameJson.Title,
-                                    ExecutablePath = gameJson.ExecutablePath,
-                                    IconImage = iconImage,
-                                    IsSteamGame = gameJson.IsSteamGame,
-                                    SteamAppId = gameJson.SteamAppId,
-                                    DisplayOrder = gameJson.DisplayOrder
-                                };
-                                Items.Add(game);
+                                iconImage = await IconExtractor.ExtractIconAsync(gameJson.ExecutablePath);
                             }
                             
-                            System.Diagnostics.Debug.WriteLine($"已加载 {Items.Count} 个游戏，按保存的顺序排列");
+                            var game = new CustomDataObject
+                            {
+                                Title = gameJson.Title,
+                                ExecutablePath = gameJson.ExecutablePath,
+                                IconImage = iconImage,
+                                IsSteamGame = gameJson.IsSteamGame,
+                                SteamAppId = gameJson.SteamAppId,
+                                DisplayOrder = gameJson.DisplayOrder
+                            };
+                            Items.Add(game);
                         }
+                        
+                        System.Diagnostics.Debug.WriteLine($"已加载 {Items.Count} 个游戏，按显示顺序排序");
                     }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("游戏数据文件为空或不存在");
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"LoadGamesData error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"LoadGamesData error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"LoadGamesData stack trace: {ex.StackTrace}");
             }
         }
 
@@ -1299,9 +1300,6 @@ namespace GameLauncher.Pages
             try
             {
                 System.Diagnostics.Debug.WriteLine("开始保存游戏数据");
-                
-                var localFolder = ApplicationData.Current.LocalFolder;
-                var file = await localFolder.CreateFileAsync(GamesDataFileName, CreationCollisionOption.ReplaceExisting);
                 
                 var gameDataList = Items.Where(item => item != null && !string.IsNullOrEmpty(item.Title))
                                        .Select(item => new GameDataJson
@@ -1316,7 +1314,7 @@ namespace GameLauncher.Pages
                 System.Diagnostics.Debug.WriteLine($"准备保存 {gameDataList.Count} 个游戏");
                 
                 var json = JsonSerializer.Serialize(gameDataList, new JsonSerializerOptions { WriteIndented = true });
-                await FileIO.WriteTextAsync(file, json);
+                await DataStorageService.WriteTextFileAsync(GamesDataFileName, json);
                 
                 System.Diagnostics.Debug.WriteLine("游戏数据保存成功");
             }
@@ -1325,7 +1323,7 @@ namespace GameLauncher.Pages
                 System.Diagnostics.Debug.WriteLine($"保存游戏数据时发生异常: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"异常堆栈: {ex.StackTrace}");
                 
-                // 不要在这里抛出异常，而是记录错误并尝试通知用户
+                // 需要重新抛出异常，但是记录错误并尝试通知用户
                 await ShowErrorDialog($"保存游戏数据失败: {ex.Message}");
             }
         }

@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml;
-using Windows.Storage;
 using System;
 
 namespace GameLauncher.Services
@@ -14,8 +13,7 @@ namespace GameLauncher.Services
             {
                 System.Diagnostics.Debug.WriteLine("ThemeService.GetSavedTheme started");
                 
-                var localSettings = ApplicationData.Current.LocalSettings;
-                var savedTheme = (string?)localSettings.Values[ThemeSettingKey] ?? "Default";
+                var savedTheme = DataStorageService.ReadSetting(ThemeSettingKey, "Default");
                 
                 System.Diagnostics.Debug.WriteLine($"Retrieved saved theme string: {savedTheme}");
 
@@ -54,8 +52,7 @@ namespace GameLauncher.Services
 
                 System.Diagnostics.Debug.WriteLine($"Converting theme to string: {themeString}");
 
-                var localSettings = ApplicationData.Current.LocalSettings;
-                localSettings.Values[ThemeSettingKey] = themeString;
+                DataStorageService.WriteSetting(ThemeSettingKey, themeString);
                 
                 System.Diagnostics.Debug.WriteLine($"Theme saved successfully: {themeString}");
             }
@@ -115,8 +112,7 @@ namespace GameLauncher.Services
             {
                 System.Diagnostics.Debug.WriteLine("ThemeService.GetSavedThemeString started");
                 
-                var localSettings = ApplicationData.Current.LocalSettings;
-                var result = (string?)localSettings.Values[ThemeSettingKey] ?? "Default";
+                var result = DataStorageService.ReadSetting(ThemeSettingKey, "Default");
                 
                 System.Diagnostics.Debug.WriteLine($"Retrieved theme string: {result}");
                 return result;
