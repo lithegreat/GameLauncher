@@ -12,6 +12,7 @@ namespace GameLauncher
         private BitmapImage? _iconImage;
         private string _steamAppId = string.Empty;
         private bool _isSteamGame = false;
+        private int _displayOrder = 0;
 
         public string Title
         {
@@ -53,7 +54,7 @@ namespace GameLauncher
         }
 
         /// <summary>
-        /// Steam AppID (如果是 Steam 游戏)
+        /// Steam AppID (仅对于 Steam 游戏)
         /// </summary>
         public string SteamAppId
         {
@@ -79,6 +80,22 @@ namespace GameLauncher
                 if (_isSteamGame != value)
                 {
                     _isSteamGame = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 显示顺序，用于保持用户拖拽后的排序
+        /// </summary>
+        public int DisplayOrder
+        {
+            get => _displayOrder;
+            set
+            {
+                if (_displayOrder != value)
+                {
+                    _displayOrder = value;
                     OnPropertyChanged();
                 }
             }

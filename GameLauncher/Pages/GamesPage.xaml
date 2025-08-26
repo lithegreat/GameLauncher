@@ -173,6 +173,7 @@
                 SelectionChanged="ContentGridView_SelectionChanged"
                 ItemClick="ContentGridView_ItemClick"
                 RightTapped="ContentGridView_RightTapped"
+                DragItemsCompleted="ContentGridView_DragItemsCompleted"
                 FlowDirection="LeftToRight"/>
         </ScrollViewer>
     </Grid>
