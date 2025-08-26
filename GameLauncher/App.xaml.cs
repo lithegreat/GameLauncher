@@ -15,6 +15,7 @@ using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
+using GameLauncher.Services;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -26,7 +27,17 @@ namespace GameLauncher
     /// </summary>
     public partial class App : Application
     {
-        public Window m_window;
+        private Window m_window;
+
+        /// <summary>
+        /// Gets the main window of the application.
+        /// </summary>
+        public Window MainWindow => m_window;
+
+        /// <summary>
+        /// Gets the current App instance.
+        /// </summary>
+        public new static App Current => (App)Application.Current;
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -44,7 +55,31 @@ namespace GameLauncher
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             m_window = new MainWindow();
+            
+            // Apply saved theme before activating the window
+            ApplySavedTheme();
+            
             m_window.Activate();
+        }
+
+        private void ApplySavedTheme()
+        {
+            try
+            {
+                var savedTheme = ThemeService.GetSavedTheme();
+
+                // Apply theme to the main window
+                if (m_window?.Content is FrameworkElement rootElement)
+                {
+                    rootElement.RequestedTheme = savedTheme;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Startup theme applied: {savedTheme}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ApplySavedTheme error: {ex.Message}");
+            }
         }
     }
 }

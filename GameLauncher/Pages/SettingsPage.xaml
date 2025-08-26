@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="GameLauncher.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:GameLauncher.Pages"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer Padding="24">
+        <StackPanel Spacing="24">
+            <!-- Settings Header -->
+            <TextBlock Text="设置" 
+                       Style="{StaticResource TitleTextBlockStyle}"/>
+            
+            <!-- Theme Settings -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="外观" 
+                           Style="{StaticResource SubtitleTextBlockStyle}"/>
+                
+                <StackPanel Spacing="12">
+                    <TextBlock Text="应用主题" 
+                               Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                    <TextBlock Text="选择应用的主题外观" 
+                               Style="{StaticResource CaptionTextBlockStyle}" 
+                               Opacity="0.7"/>
+                    
+                    <!-- Simple Theme RadioButtons -->
+                    <StackPanel Spacing="8" Margin="0,8,0,0">
+                        <RadioButton x:Name="LightThemeRadio" 
+                                     Content="浅色主题" 
+                                     GroupName="ThemeGroup"
+                                     Click="ThemeRadio_Click"
+                                     Tag="Light"/>
+                        
+                        <RadioButton x:Name="DarkThemeRadio" 
+                                     Content="深色主题" 
+                                     GroupName="ThemeGroup"
+                                     Click="ThemeRadio_Click"
+                                     Tag="Dark"/>
+                        
+                        <RadioButton x:Name="SystemThemeRadio" 
+                                     Content="跟随系统" 
+                                     GroupName="ThemeGroup"
+                                     Click="ThemeRadio_Click"
+                                     Tag="Default"
+                                     IsChecked="True"/>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+            
+            <!-- App Information -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="应用信息" 
+                           Style="{StaticResource SubtitleTextBlockStyle}"/>
+                <TextBlock Text="GameLauncher v1.0" 
+                           Style="{StaticResource BodyTextBlockStyle}" 
+                           Opacity="0.8"/>
+                <TextBlock Text="一个简单的游戏启动器应用程序" 
+                           Style="{StaticResource CaptionTextBlockStyle}" 
+                           Opacity="0.6"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

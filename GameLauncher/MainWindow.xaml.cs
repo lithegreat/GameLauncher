@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -12,14 +13,13 @@ using Windows.Storage.Pickers;
 using WinRT.Interop;
 using Microsoft.UI.Windowing;
 using Microsoft.UI;
+using GameLauncher.Pages;
+using GameLauncher.Services;
 
 namespace GameLauncher
 {
     public sealed partial class MainWindow : Window
     {
-        public ObservableCollection<CustomDataObject> Items { get; } = new ObservableCollection<CustomDataObject>();
-        
-        private const string GamesDataFileName = "games.json";
         private bool _dragRegionSet = false;
         private bool _initialized = false;
 
@@ -28,7 +28,29 @@ namespace GameLauncher
             this.InitializeComponent();
             this.Activated += MainWindow_Activated;
 
+            // Apply saved theme before showing the window
+            ApplySavedTheme();
             TrySetBackdrop();
+        }
+
+        private void ApplySavedTheme()
+        {
+            try
+            {
+                var savedTheme = ThemeService.GetSavedTheme();
+
+                // Apply theme to the content
+                if (this.Content is FrameworkElement content)
+                {
+                    content.RequestedTheme = savedTheme;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"MainWindow theme applied: {savedTheme}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"MainWindow ApplySavedTheme error: {ex.Message}");
+            }
         }
 
         private void TrySetBackdrop()
@@ -54,12 +76,119 @@ namespace GameLauncher
                 {
                     SetupCustomTitleBar();
                     this.SizeChanged += MainWindow_SizeChanged;
-                    await LoadGamesData();
+                    
+                    // Set up navigation after the window is activated
+                    SetupNavigation();
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"MainWindow_Activated error: {ex.Message}");
                 }
+            }
+        }
+
+        private void SetupNavigation()
+        {
+            try
+            {
+                // Set up navigation
+                nvSample.SelectionChanged += NavigationView_SelectionChanged;
+                nvSample.Loaded += NavigationView_Loaded;
+                
+                // Navigate to GamesPage by default if not already navigated
+                if (contentFrame.Content == null)
+                {
+                    contentFrame.Navigate(typeof(GamesPage));
+                    nvSample.SelectedItem = nvSample.MenuItems[0];
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SetupNavigation error: {ex.Message}");
+            }
+        }
+
+        private void NavigationView_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Ensure we have a default page loaded
+            if (contentFrame.Content == null)
+            {
+                contentFrame.Navigate(typeof(GamesPage));
+                nvSample.SelectedItem = nvSample.MenuItems[0];
+            }
+        }
+
+        private void NavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+        {
+            try
+            {
+                if (args.SelectedItemContainer != null)
+                {
+                    var navItemTag = args.SelectedItemContainer.Tag?.ToString();
+                    Debug.WriteLine($"Navigation selection changed to: {navItemTag}");
+                    NavigateToPage(navItemTag);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"NavigationView_SelectionChanged error: {ex.Message}");
+                Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
+        }
+
+        private void NavigateToPage(string navItemTag)
+        {
+            try
+            {
+                Type pageType = null;
+
+                switch (navItemTag)
+                {
+                    case "GamesPage":
+                        pageType = typeof(GamesPage);
+                        break;
+                    case "SettingsPage":
+                        pageType = typeof(SettingsPage);
+                        break;
+                    default:
+                        Debug.WriteLine($"Unknown navigation tag: {navItemTag}");
+                        break;
+                }
+
+                if (pageType != null && contentFrame.CurrentSourcePageType != pageType)
+                {
+                    Debug.WriteLine($"Attempting to navigate to: {pageType.Name}");
+                    
+                    // Add extra protection for SettingsPage navigation
+                    if (pageType == typeof(SettingsPage))
+                    {
+                        Debug.WriteLine("Navigating to SettingsPage with extra error handling");
+                        try
+                        {
+                            contentFrame.Navigate(pageType);
+                            Debug.WriteLine("SettingsPage navigation completed successfully");
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"SettingsPage navigation failed: {ex.Message}");
+                            Debug.WriteLine($"SettingsPage navigation stack trace: {ex.StackTrace}");
+                            
+                            // Try to stay on current page if navigation fails
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        contentFrame.Navigate(pageType);
+                    }
+                    
+                    Debug.WriteLine($"Navigated to: {pageType.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"NavigateToPage error: {ex.Message}");
+                Debug.WriteLine($"NavigateToPage stack trace: {ex.StackTrace}");
             }
         }
 
@@ -115,18 +244,16 @@ namespace GameLauncher
                 if (titleBar != null)
                 {
                     var titleBarHeight = 48;
-                    var addButtonWidth = 120;
                     var systemButtonsWidth = 138;
-                    var reservedWidth = addButtonWidth + systemButtonsWidth;
                     var windowWidth = (int)this.Bounds.Width;
                     
-                    if (windowWidth > reservedWidth)
+                    if (windowWidth > systemButtonsWidth)
                     {
                         var dragRect = new Windows.Graphics.RectInt32
                         {
                             X = 0,
                             Y = 0,
-                            Width = windowWidth - reservedWidth,
+                            Width = windowWidth - systemButtonsWidth,
                             Height = titleBarHeight
                         };
                         
@@ -139,288 +266,5 @@ namespace GameLauncher
                 Debug.WriteLine($"SetDragRegions error: {ex.Message}");
             }
         }
-
-        private Microsoft.UI.Xaml.XamlRoot? TryGetXamlRoot()
-        {
-            return (this.Content as FrameworkElement)?.XamlRoot;
-        }
-
-        private async void AddGameButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                await ShowAddGameDialog();
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"添加游戏时出错: {ex.Message}");
-            }
-        }
-
-        private async Task ShowAddGameDialog()
-        {
-            var gameNameBox = new TextBox()
-            {
-                PlaceholderText = "输入游戏名称",
-                Margin = new Thickness(0, 0, 0, 10)
-            };
-
-            var pathBox = new TextBox()
-            {
-                PlaceholderText = "游戏可执行文件路径",
-                IsReadOnly = true,
-                Margin = new Thickness(0, 0, 5, 0)
-            };
-
-            var browseButton = new Button()
-            {
-                Content = "浏览..."
-            };
-
-            browseButton.Click += async (s, args) =>
-            {
-                try
-                {
-                    var picker = new FileOpenPicker();
-                    picker.SuggestedStartLocation = PickerLocationId.Desktop;
-                    picker.FileTypeFilter.Add(".exe");
-
-                    var hWnd = WindowNative.GetWindowHandle(this);
-                    InitializeWithWindow.Initialize(picker, hWnd);
-
-                    var file = await picker.PickSingleFileAsync();
-                    if (file != null)
-                    {
-                        pathBox.Text = file.Path;
-                        if (string.IsNullOrWhiteSpace(gameNameBox.Text))
-                        {
-                            gameNameBox.Text = Path.GetFileNameWithoutExtension(file.Name);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"File picker error: {ex.Message}");
-                }
-            };
-
-            var pathPanel = new StackPanel()
-            {
-                Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 0, 0, 10)
-            };
-            pathPanel.Children.Add(pathBox);
-            pathPanel.Children.Add(browseButton);
-
-            var contentPanel = new StackPanel();
-            contentPanel.Children.Add(new TextBlock() { Text = "游戏名称:", Margin = new Thickness(0, 0, 0, 5) });
-            contentPanel.Children.Add(gameNameBox);
-            contentPanel.Children.Add(new TextBlock() { Text = "可执行文件路径:", Margin = new Thickness(0, 10, 0, 5) });
-            contentPanel.Children.Add(pathPanel);
-
-            var xamlRoot = TryGetXamlRoot();
-            if (xamlRoot is null)
-            {
-                await ShowErrorDialog("无法显示对话框，因UI尚未准备好。");
-                return;
-            }
-
-            var dialog = new ContentDialog()
-            {
-                Title = "添加游戏",
-                Content = contentPanel,
-                PrimaryButtonText = "确定",
-                SecondaryButtonText = "取消",
-                XamlRoot = xamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-
-            if (result == ContentDialogResult.Primary)
-            {
-                if (string.IsNullOrWhiteSpace(gameNameBox.Text))
-                {
-                    await ShowErrorDialog("请输入游戏名称");
-                    return;
-                }
-
-                if (string.IsNullOrWhiteSpace(pathBox.Text))
-                {
-                    await ShowErrorDialog("请选择游戏可执行文件");
-                    return;
-                }
-
-                if (!File.Exists(pathBox.Text))
-                {
-                    await ShowErrorDialog("指定的文件不存在");
-                    return;
-                }
-
-                var iconImage = await IconExtractor.ExtractIconAsync(pathBox.Text);
-
-                var gameData = new CustomDataObject
-                {
-                    Title = gameNameBox.Text.Trim(),
-                    ExecutablePath = pathBox.Text.Trim(),
-                    IconImage = iconImage
-                };
-
-                Items.Add(gameData);
-                await SaveGamesData();
-            }
-        }
-
-        private void ContentGridView_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            // Handle selection changed if needed
-        }
-
-        private async void ContentGridView_ItemClick(object sender, ItemClickEventArgs e)
-        {
-            try
-            {
-                if (e.ClickedItem is CustomDataObject game)
-                {
-                    await LaunchGame(game);
-                }
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"启动游戏时出错: {ex.Message}");
-            }
-        }
-
-        private async Task LaunchGame(CustomDataObject game)
-        {
-            try
-            {
-                if (game == null)
-                {
-                    await ShowErrorDialog("游戏数据无效");
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(game.ExecutablePath) || !File.Exists(game.ExecutablePath))
-                {
-                    await ShowErrorDialog($"游戏文件不存在: {game.ExecutablePath}");
-                    return;
-                }
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = game.ExecutablePath,
-                    WorkingDirectory = Path.GetDirectoryName(game.ExecutablePath) ?? string.Empty,
-                    UseShellExecute = true
-                };
-
-                Process.Start(startInfo);
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"启动游戏失败: {ex.Message}");
-            }
-        }
-
-        private async Task LoadGamesData()
-        {
-            try
-            {
-                var localFolder = ApplicationData.Current.LocalFolder;
-                var file = await localFolder.TryGetItemAsync(GamesDataFileName) as StorageFile;
-                
-                if (file != null)
-                {
-                    var json = await FileIO.ReadTextAsync(file);
-                    
-                    if (!string.IsNullOrEmpty(json))
-                    {
-                        var options = new JsonSerializerOptions 
-                        { 
-                            WriteIndented = true,
-                            PropertyNameCaseInsensitive = true
-                        };
-                        
-                        var gameDataList = JsonSerializer.Deserialize<GameDataJson[]>(json, options);
-                        
-                        if (gameDataList != null)
-                        {
-                            Items.Clear();
-                            foreach (var gameJson in gameDataList)
-                            {
-                                if (gameJson != null && !string.IsNullOrEmpty(gameJson.Title) && !string.IsNullOrEmpty(gameJson.ExecutablePath))
-                                {
-                                    var iconImage = await IconExtractor.ExtractIconAsync(gameJson.ExecutablePath);
-                                    
-                                    var game = new CustomDataObject
-                                    {
-                                        Title = gameJson.Title,
-                                        ExecutablePath = gameJson.ExecutablePath,
-                                        IconImage = iconImage
-                                    };
-                                    Items.Add(game);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"LoadGamesData error: {ex.Message}");
-            }
-        }
-
-        private async Task SaveGamesData()
-        {
-            try
-            {
-                var localFolder = ApplicationData.Current.LocalFolder;
-                var file = await localFolder.CreateFileAsync(GamesDataFileName, CreationCollisionOption.ReplaceExisting);
-                
-                var gameDataList = Items.Where(item => item != null && !string.IsNullOrEmpty(item.Title))
-                                       .Select(item => new GameDataJson
-                                       {
-                                           Title = item.Title,
-                                           ExecutablePath = item.ExecutablePath
-                                       }).ToList();
-                
-                var json = JsonSerializer.Serialize(gameDataList, new JsonSerializerOptions { WriteIndented = true });
-                await FileIO.WriteTextAsync(file, json);
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"保存游戏数据失败: {ex.Message}");
-            }
-        }
-
-        private async Task ShowErrorDialog(string message)
-        {
-            try
-            {
-                var xamlRoot = TryGetXamlRoot();
-                if (xamlRoot != null)
-                {
-                    var dialog = new ContentDialog()
-                    {
-                        Title = "错误",
-                        Content = message ?? "发生未知错误",
-                        CloseButtonText = "确定",
-                        XamlRoot = xamlRoot
-                    };
-
-                    await dialog.ShowAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"ShowErrorDialog error: {ex.Message}");
-            }
-        }
-    }
-
-    public class GameDataJson
-    {
-        public string Title { get; set; } = string.Empty;
-        public string ExecutablePath { get; set; } = string.Empty;
     }
 }
