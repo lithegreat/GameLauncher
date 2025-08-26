@@ -14,6 +14,8 @@
             <MenuFlyoutItem x:Name="OpenGameMenuItem" Text="打开游戏" Icon="Play" Click="OpenGameMenuItem_Click"/>
             <MenuFlyoutItem x:Name="DeleteGameMenuItem" Text="删除游戏" Icon="Delete" Click="DeleteGameMenuItem_Click"/>
             <MenuFlyoutItem x:Name="OpenGameDirectoryMenuItem" Text="打开游戏目录" Icon="Folder" Click="OpenGameDirectoryMenuItem_Click"/>
+            <MenuFlyoutSeparator x:Name="SteamSeparator"/>
+            <MenuFlyoutItem x:Name="OpenInSteamMenuItem" Text="在Steam中打开" Icon="Shop" Click="OpenInSteamMenuItem_Click"/>
         </MenuFlyout>
 
         <!-- ImageTextTemplate DataTemplate with Game Icon -->
@@ -121,6 +123,26 @@
                 <!-- Delete Mode Toggle Button -->
                 <Button x:Name="DeleteModeButton" Content="删除游戏" 
                         Click="DeleteModeButton_Click" Style="{StaticResource DefaultButtonStyle}"/>
+                
+                <!-- Clean Duplicate Games Button -->
+                <Button x:Name="CleanDuplicateGamesButton" 
+                        Click="CleanDuplicateGamesButton_Click" 
+                        Style="{StaticResource DefaultButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE74D;" FontSize="16"/>
+                        <TextBlock Text="清理重复"/>
+                    </StackPanel>
+                </Button>
+                
+                <!-- Import Steam Games Button -->
+                <Button x:Name="ImportSteamGamesButton" 
+                        Click="ImportSteamGamesButton_Click" 
+                        Style="{StaticResource DefaultButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE896;" FontSize="16"/>
+                        <TextBlock Text="导入Steam游戏"/>
+                    </StackPanel>
+                </Button>
                         
                 <!-- Add Game Button -->
                 <Button x:Name="AddGameButton" Content="添加游戏" 
