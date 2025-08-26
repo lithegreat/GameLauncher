@@ -42,6 +42,13 @@ namespace GameLauncher.Pages
             base.OnNavigatedTo(e);
         }
 
+        protected override async void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            // 页面离开时保存当前的游戏顺序
+            await SaveCurrentGameOrder();
+        }
+
         #region Context Menu Event Handlers
 
         private void ContentGridView_RightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -440,6 +447,7 @@ namespace GameLauncher.Pages
                                 }
                             }
                             
+
                             System.Diagnostics.Debug.WriteLine("批量删除完成，退出删除模式");
                             
                             // Exit delete mode
@@ -1246,29 +1254,36 @@ namespace GameLauncher.Pages
                         if (gameDataList != null)
                         {
                             Items.Clear();
-                            foreach (var gameJson in gameDataList)
+                            
+                            // 按显示顺序排序，然后添加到集合中
+                            var sortedGames = gameDataList
+                                .Where(g => g != null && !string.IsNullOrEmpty(g.Title))
+                                .OrderBy(g => g.DisplayOrder)
+                                .ToList();
+                            
+                            foreach (var gameJson in sortedGames)
                             {
-                                if (gameJson != null && !string.IsNullOrEmpty(gameJson.Title))
+                                BitmapImage? iconImage = null;
+                                
+                                // 为有可执行文件路径的游戏提取图标
+                                if (!string.IsNullOrEmpty(gameJson.ExecutablePath) && File.Exists(gameJson.ExecutablePath))
                                 {
-                                    BitmapImage? iconImage = null;
-                                    
-                                    // 为非 Steam 游戏或有可执行文件路径的 Steam 游戏提取图标
-                                    if (!string.IsNullOrEmpty(gameJson.ExecutablePath) && File.Exists(gameJson.ExecutablePath))
-                                    {
-                                        iconImage = await IconExtractor.ExtractIconAsync(gameJson.ExecutablePath);
-                                    }
-                                    
-                                    var game = new CustomDataObject
-                                    {
-                                        Title = gameJson.Title,
-                                        ExecutablePath = gameJson.ExecutablePath,
-                                        IconImage = iconImage,
-                                        IsSteamGame = gameJson.IsSteamGame,
-                                        SteamAppId = gameJson.SteamAppId
-                                    };
-                                    Items.Add(game);
+                                    iconImage = await IconExtractor.ExtractIconAsync(gameJson.ExecutablePath);
                                 }
+                                
+                                var game = new CustomDataObject
+                                {
+                                    Title = gameJson.Title,
+                                    ExecutablePath = gameJson.ExecutablePath,
+                                    IconImage = iconImage,
+                                    IsSteamGame = gameJson.IsSteamGame,
+                                    SteamAppId = gameJson.SteamAppId,
+                                    DisplayOrder = gameJson.DisplayOrder
+                                };
+                                Items.Add(game);
                             }
+                            
+                            System.Diagnostics.Debug.WriteLine($"已加载 {Items.Count} 个游戏，按保存的顺序排列");
                         }
                     }
                 }
@@ -1294,7 +1309,8 @@ namespace GameLauncher.Pages
                                            Title = item.Title,
                                            ExecutablePath = item.ExecutablePath,
                                            IsSteamGame = item.IsSteamGame,
-                                           SteamAppId = item.SteamAppId
+                                           SteamAppId = item.SteamAppId,
+                                           DisplayOrder = item.DisplayOrder
                                        }).ToList();
                 
                 System.Diagnostics.Debug.WriteLine($"准备保存 {gameDataList.Count} 个游戏");
@@ -1358,6 +1374,40 @@ namespace GameLauncher.Pages
             public bool IsSelected { get; set; }
             public string DisplayName { get; set; } = string.Empty;
         }
+
+        private async Task SaveCurrentGameOrder()
+        {
+            try
+            {
+                // 更新每个游戏的显示顺序
+                for (int i = 0; i < Items.Count; i++)
+                {
+                    Items[i].DisplayOrder = i;
+                }
+                
+                // 保存到文件
+                await SaveGamesData();
+                System.Diagnostics.Debug.WriteLine("游戏顺序已保存");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"保存游戏顺序时出错: {ex.Message}");
+            }
+        }
+
+        private async void ContentGridView_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+        {
+            try
+            {
+                // 拖拽操作完成后，保存新的游戏顺序
+                await SaveCurrentGameOrder();
+                System.Diagnostics.Debug.WriteLine("拖拽重排完成，游戏顺序已保存");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"处理拖拽完成事件时出错: {ex.Message}");
+            }
+        }
     }
 
     public class GameDataJson
@@ -1366,5 +1416,6 @@ namespace GameLauncher.Pages
         public string ExecutablePath { get; set; } = string.Empty;
         public string SteamAppId { get; set; } = string.Empty;
         public bool IsSteamGame { get; set; } = false;
+        public int DisplayOrder { get; set; } = 0;
     }
 }
