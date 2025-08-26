@@ -10,6 +10,8 @@ namespace GameLauncher
         private string _title = string.Empty;
         private string _executablePath = string.Empty;
         private BitmapImage? _iconImage;
+        private string _steamAppId = string.Empty;
+        private bool _isSteamGame = false;
 
         public string Title
         {
@@ -45,6 +47,38 @@ namespace GameLauncher
                 if (_iconImage != value)
                 {
                     _iconImage = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Steam AppID (如果是 Steam 游戏)
+        /// </summary>
+        public string SteamAppId
+        {
+            get => _steamAppId;
+            set
+            {
+                if (_steamAppId != value)
+                {
+                    _steamAppId = value ?? string.Empty;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 是否为 Steam 游戏
+        /// </summary>
+        public bool IsSteamGame
+        {
+            get => _isSteamGame;
+            set
+            {
+                if (_isSteamGame != value)
+                {
+                    _isSteamGame = value;
                     OnPropertyChanged();
                 }
             }
