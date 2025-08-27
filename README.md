@@ -1,140 +1,155 @@
-# GameLauncher (游戏启动器)
+English | [简体中文](./docs/README.zh-CN.md) 
 
-一个现代化的 Windows 游戏启动器应用程序，基于 WinUI 3 和 .NET 8 构建，支持游戏管理、快速启动和 Steam 游戏集成。
+# GameLauncher
 
-## 🎮 主要功能
+A modern Windows game launcher application built with WinUI 3 and .NET 8, featuring game management, quick launch, and Steam integration.
 
-### 游戏管理
-- **添加游戏**：手动添加自定义游戏到启动器
-- **Steam 游戏导入**：自动扫描并导入已安装的 Steam 游戏
-- **游戏启动**：一键启动游戏，支持 Steam 协议和直接可执行文件启动
-- **游戏图标提取**：自动提取游戏可执行文件的图标
-- **游戏目录访问**：右键菜单快速打开游戏安装目录
+## 🎮 Key Features
 
-### 游戏组织
-- **重复游戏清理**：智能检测并清理重复的游戏条目
-- **批量删除**：支持多选删除游戏
-- **游戏搜索与过滤**：快速找到想要的游戏
+### Game Management
+- **Add Games**: Manually add custom games to the launcher
+- **Steam Game Import**: Automatically scan and import installed Steam games
+- **Game Launch**: One-click game launching with Steam protocol and direct executable support
+- **Icon Extraction**: Automatically extract icons from game executables
+- **Game Directory Access**: Right-click menu for quick access to game installation directories
 
-### Steam 集成
-- **Steam 游戏自动发现**：扫描所有 Steam 游戏库路径
-- **Steam 协议支持**：通过 Steam 客户端启动游戏
-- **Steam 商店链接**：右键菜单直接跳转到 Steam 商店页面
+### Steam Integration
+- **Steam Game Discovery**: Scan all Steam library paths
+- **Steam Protocol Support**: Launch games through Steam client
+- **Steam Store Links**: Right-click menu to jump directly to Steam store pages
 
-### 界面与主题
-- **现代化 UI**：基于 WinUI 3 的流畅设计语言
-- **主题切换**：支持浅色、深色和跟随系统主题
-- **响应式布局**：适配不同屏幕尺寸
-- **自定义标题栏**：集成的自定义窗口标题栏
+### Interface & Theming
+- **Modern UI**: Based on WinUI 3 Fluent Design Language
+- **Theme Switching**: Support for light, dark, and system theme following
+- **Responsive Layout**: Adapts to different screen sizes
 
-## 🏗️ 项目结构
+## 📥 Installation Instructions
+
+Before installing GameLauncher, you need to install the application signing certificate:
+
+1. **Download Certificate Files**:
+   - Download the latest version from the [Releases](https://github.com/lithegreat/GameLauncher/releases) page
+   - Download the release package containing both `.msix` installer and `.cer` certificate file
+
+2. **Install Certificate**:
+   - Right-click on the downloaded `.cer` certificate file
+   - Select "Install Certificate"
+   - In the Certificate Import Wizard, select "Local Machine"
+   - Choose "Place all certificates in the following store"
+   - Click "Browse" and select "Trusted Root Certification Authorities"
+   - Complete the certificate installation
+
+3. **Install Application**:
+   - Double-click the `.msix` file to start installation
+   - If the certificate is installed correctly, the application will install normally
+   - If you encounter security warnings, the certificate was not installed correctly - repeat step 2
+
+### Troubleshooting
+- **If installation fails**: Ensure the certificate is installed in the "Trusted Root Certification Authorities" store
+- **If problems persist**: Try running the certificate installation process as administrator
+- **Windows 11/10 Requirements**: Ensure your system is updated to the latest version
+
+## 🏗️ Project Structure
 
 ```
 GameLauncher/
-├── GameLauncher.sln              # Visual Studio 解决方案文件
-├── GameLauncher/                 # 主项目目录
-│   ├── GameLauncher.csproj       # 项目配置文件
-│   ├── Package.appxmanifest      # MSIX 打包清单
-│   ├── app.manifest              # 应用程序清单
+├── GameLauncher.sln              # Visual Studio Solution File
+├── GameLauncher/                 # Main Project Directory
+│   ├── GameLauncher.csproj       # Project Configuration File
+│   ├── Package.appxmanifest      # MSIX Package Manifest
+│   ├── app.manifest              # Application Manifest
 │   │
-│   ├── App.xaml                  # 应用程序入口 XAML
-│   ├── App.xaml.cs               # 应用程序入口代码
-│   ├── MainWindow.xaml           # 主窗口 XAML
-│   ├── MainWindow.xaml.cs        # 主窗口代码逻辑
+│   ├── App.xaml                  # Application Entry XAML
+│   ├── App.xaml.cs               # Application Entry Code
+│   ├── MainWindow.xaml           # Main Window XAML
+│   ├── MainWindow.xaml.cs        # Main Window Logic
 │   │
-│   ├── Pages/                    # 页面目录
-│   │   ├── GamesPage.xaml        # 游戏管理页面 XAML
-│   │   ├── GamesPage.xaml.cs     # 游戏管理页面逻辑
-│   │   ├── SettingsPage.xaml     # 设置页面 XAML
-│   │   └── SettingsPage.xaml.cs  # 设置页面逻辑
+│   ├── Pages/                    # Pages Directory
+│   │   ├── GamesPage.xaml        # Game Management Page XAML
+│   │   ├── GamesPage.xaml.cs     # Game Management Page Logic
+│   │   ├── SettingsPage.xaml     # Settings Page XAML
+│   │   └── SettingsPage.xaml.cs  # Settings Page Logic
 │   │
-│   ├── Services/                 # 服务层
-│   │   ├── SteamService.cs       # Steam 集成服务
-│   │   └── ThemeService.cs       # 主题管理服务
+│   ├── Services/                 # Service Layer
+│   │   ├── SteamService.cs       # Steam Integration Service
+│   │   └── ThemeService.cs       # Theme Management Service
 │   │
-│   ├── CustomDataObject.cs       # 游戏数据模型
-│   ├── IconExtractor.cs          # 图标提取工具
+│   ├── CustomDataObject.cs       # Game Data Model
+│   ├── IconExtractor.cs          # Icon Extraction Tool
 │   │
-│   ├── Assets/                   # 应用资源
-│   │   ├── *.png                 # 应用图标和徽标
+│   ├── Assets/                   # Application Resources
+│   │   ├── *.png                 # Application Icons and Logos
 │   │   └── ...
 │   │
-│   └── Properties/               # 项目属性
-│       ├── launchSettings.json   # 启动配置
-│       └── PublishProfiles/      # 发布配置文件
-│           ├── win-x64.pubxml    # x64 发布配置
-│           ├── win-x86.pubxml    # x86 发布配置
-│           └── win-arm64.pubxml  # ARM64 发布配置
+│   └── Properties/               # Project Properties
+│       ├── launchSettings.json   # Launch Configuration
+│       └── PublishProfiles/      # Publish Configuration Files
+│           ├── win-x64.pubxml    # x64 Publish Configuration
+│           ├── win-x86.pubxml    # x86 Publish Configuration
+│           └── win-arm64.pubxml  # ARM64 Publish Configuration
 ```
 
-## 🛠️ 技术栈
+## 🛠️ Technology Stack
 
-### 框架与平台
-- **.NET 8.0**：最新的 .NET 运行时
-- **WinUI 3**：Microsoft 的现代 Windows UI 框架
-- **Windows App SDK**：Windows 平台特性支持
-- **MSIX**：现代化的应用打包和分发
+### Frameworks & Platform
+- **.NET 8.0**
+- **WinUI 3**: Microsoft's modern Windows UI framework
+- **Windows App SDK**: Windows platform feature support
+- **MSIX**: Modern application packaging and distribution
 
-### 开发工具
-- **C# 12**：现代 C# 语言特性
-- **XAML**：声明式 UI 标记语言
-- **Visual Studio 2022**：集成开发环境
+### Development Tools
+- **C# 12**: Modern C# language features
+- **XAML**: Declarative UI markup language
+- **Visual Studio 2022**: Integrated development environment
 
-### 系统集成
-- **Windows Registry**：Steam 安装路径检测
-- **Shell32 API**：图标提取功能
-- **Steam Protocol**：Steam 游戏启动支持
+## 🚀 Build & Run
 
-## 🚀 构建与运行
-
-1. **安装开发工具**：
+1. **Install Development Tools**:
    ```
-   - Visual Studio 2022 (17.14 或更高版本)
-   - Windows App SDK 工作负载
+   - Visual Studio 2022 (version 17.14 or higher)
+   - Windows App SDK workload
    - .NET 8.0 SDK
    ```
 
-2. **克隆项目**：
+2. **Clone Project**:
    ```bash
    git clone <repository-url>
    cd GameLauncher
    ```
 
-3. **打开解决方案**：
+3. **Open Solution**:
    ```bash
    GameLauncher.sln
    ```
 
-## 📱 使用说明
+## 📱 Usage Instructions
 
-### 首次启动
-1. 启动应用程序
-2. 应用会自动检测 Steam 安装（如果存在）
-3. 可以选择导入 Steam 游戏或手动添加游戏
+### First Launch
+1. Start the application
+2. The app will automatically detect Steam installation (if exists)
+3. Choose to import Steam games or manually add games
 
-### 添加游戏
-1. 点击"添加游戏"按钮
-2. 填写游戏名称
-3. 选择游戏的可执行文件(.exe)
-4. 应用会自动提取游戏图标
+### Adding Games
+1. Click the "Add Game" button
+2. Fill in the game name
+3. Select the game's executable file (.exe)
+4. The app will automatically extract the game icon
 
-### Steam 游戏导入
-1. 点击"导入 Steam 游戏"按钮
-2. 应用会扫描所有 Steam 游戏库
-3. 选择要导入的游戏
-4. 导入的游戏会显示 Steam 标识
+### Steam Game Import
+1. Click the "Import Steam Games" button
+2. The app will scan all Steam game libraries
+3. Select the games to import
 
-### 游戏管理
-- **启动游戏**：单击游戏卡片
-- **右键菜单**：访问更多选项（删除、打开目录、Steam 商店等）
-- **批量操作**：使用"删除游戏"模式进行多选操作
-- **清理重复**：使用"清理重复"功能去除重复的游戏条目
+### Game Management
+- **Launch Game**: Click on game card
+- **Right-click Menu**: Access more options (delete, open directory, Steam store, etc.)
+- **Batch Operations**: Use "Delete Games" mode for multi-selection operations
+- **Clean Duplicates**: Use "Clean Duplicates" feature to remove duplicate game entries
 
-### 设置选项
-- **主题切换**：在设置页面选择浅色、深色或跟随系统主题
-- **其他设置**：查看应用信息和版本
+### Settings Options
+- **Theme Switching**: Select light, dark, or system theme in settings page
+- **Other Settings**: View app information and version
 
+## 📄 License
 
-## 📄 许可证
-
-本项目采用 [GPL 许可证](LICENSE.txt) - 查看 [LICENSE](LICENSE.txt) 文件了解详情。
+This project is licensed under the [GPL License](LICENSE.txt) - see the [LICENSE](LICENSE.txt) file for details.
