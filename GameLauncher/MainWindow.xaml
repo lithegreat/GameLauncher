@@ -16,7 +16,7 @@
         </Grid.RowDefinitions>
 
         <!-- Custom Title Bar -->
-        <Grid x:Name="CustomTitleBar" Grid.Row="0" Height="48" Background="{ThemeResource LayerFillColorDefaultBrush}">
+        <Grid x:Name="CustomTitleBar" Grid.Row="0" Height="Auto">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
