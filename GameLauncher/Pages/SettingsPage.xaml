@@ -69,6 +69,19 @@
                                Opacity="0.7"
                                Margin="0,-8,0,8"/>
 
+                    <!-- Include Prerelease -->
+                    <ToggleSwitch x:Name="IncludePrereleaseToggle" 
+                                  Header="包含预发布版本"
+                                  OnContent="包含" 
+                                  OffContent="仅正式版"
+                                  IsOn="False"
+                                  Toggled="IncludePrereleaseToggle_Toggled"/>
+                    
+                    <TextBlock Text="是否接收预发布版本的更新（可能不稳定）" 
+                               Style="{StaticResource CaptionTextBlockStyle}" 
+                               Opacity="0.7"
+                               Margin="0,-8,0,8"/>
+
                     <!-- Update Frequency -->
                     <StackPanel x:Name="UpdateFrequencyPanel" Spacing="8">
                         <TextBlock Text="检查频率" 

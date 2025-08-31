@@ -18,6 +18,7 @@ namespace GameLauncher.Services
     {
         private static readonly HttpClient _httpClient = new HttpClient();
         private static readonly string _githubApiUrl = "https://api.github.com/repos/lithegreat/GameLauncher/releases/latest";
+        private static readonly string _githubAllReleasesApiUrl = "https://api.github.com/repos/lithegreat/GameLauncher/releases";
         private static Timer? _updateTimer;
         
         // 添加更强的状态跟踪变量
@@ -55,16 +56,21 @@ namespace GameLauncher.Services
 
                 _isCheckingUpdate = true;
                 Debug.WriteLine("UpdateService: Starting update check");
-                
-                var response = await _httpClient.GetAsync(_githubApiUrl);
-                response.EnsureSuccessStatusCode();
-                
-                var jsonContent = await response.Content.ReadAsStringAsync();
-                var options = new JsonSerializerOptions
+
+                // 获取用户设置
+                var settings = UpdateSettings.GetSettings();
+                GitHubRelease? releaseInfo;
+
+                if (settings.IncludePrerelease)
                 {
-                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-                };
-                var releaseInfo = JsonSerializer.Deserialize<GitHubRelease>(jsonContent, options);
+                    // 如果包含预发布版本，获取所有releases并找到最新的
+                    releaseInfo = await GetLatestReleaseIncludingPrerelease();
+                }
+                else
+                {
+                    // 只获取正式版本
+                    releaseInfo = await GetLatestStableRelease();
+                }
                 
                 if (releaseInfo == null)
                 {
@@ -73,7 +79,7 @@ namespace GameLauncher.Services
                     return errorResult;
                 }
 
-                Debug.WriteLine($"UpdateService: Found release {releaseInfo.TagName}");
+                Debug.WriteLine($"UpdateService: Found release {releaseInfo.TagName} (Prerelease: {releaseInfo.Prerelease})");
 
                 // 获取当前版本
                 var currentVersion = GetCurrentVersion();
@@ -112,7 +118,8 @@ namespace GameLauncher.Services
                     LatestVersion = releaseInfo.TagName,
                     CurrentVersion = currentVersion.ToString(),
                     DownloadUrl = msixAsset?.DownloadUrl,
-                    ReleaseNotes = releaseInfo.Body
+                    ReleaseNotes = releaseInfo.Body,
+                    IsPrerelease = releaseInfo.Prerelease
                 };
 
                 _lastCheckResult = result;
@@ -143,6 +150,63 @@ namespace GameLauncher.Services
             finally
             {
                 _isCheckingUpdate = false;
+            }
+        }
+
+        private static async Task<GitHubRelease?> GetLatestStableRelease()
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync(_githubApiUrl);
+                response.EnsureSuccessStatusCode();
+                
+                var jsonContent = await response.Content.ReadAsStringAsync();
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                };
+                
+                return JsonSerializer.Deserialize<GitHubRelease>(jsonContent, options);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"UpdateService: Error getting stable release: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static async Task<GitHubRelease?> GetLatestReleaseIncludingPrerelease()
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync(_githubAllReleasesApiUrl);
+                response.EnsureSuccessStatusCode();
+                
+                var jsonContent = await response.Content.ReadAsStringAsync();
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                };
+                
+                var releases = JsonSerializer.Deserialize<GitHubRelease[]>(jsonContent, options);
+                
+                if (releases == null || releases.Length == 0)
+                {
+                    return null;
+                }
+
+                // 过滤掉草稿版本，按版本号排序，返回最新的
+                var validReleases = releases
+                    .Where(r => !r.Draft)
+                    .OrderByDescending(r => ParseVersion(r.TagName))
+                    .ToArray();
+
+                return validReleases.FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"UpdateService: Error getting releases including prerelease: {ex.Message}");
+                return null;
             }
         }
 
@@ -365,11 +429,160 @@ namespace GameLauncher.Services
                 // 标记已显示对话框
                 _hasShownUpdateDialogThisSession = true;
                 _lastShownVersion = result.LatestVersion;
+
+                // 构建详细的版本信息UI
+                var stackPanel = new StackPanel { Spacing = 16, MaxWidth = 500 };
+
+                // 版本信息区域
+                var versionInfoPanel = new StackPanel { Spacing = 8 };
+                
+                // 标题
+                var titleText = new TextBlock
+                {
+                    Text = result.IsPrerelease ? "发现新的预发布版本" : "发现新版本",
+                    Style = (Style)App.Current.Resources["SubtitleTextBlockStyle"],
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                versionInfoPanel.Children.Add(titleText);
+
+                // 版本对比信息
+                var versionComparePanel = new Grid();
+                versionComparePanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                versionComparePanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+                versionComparePanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                // 当前版本
+                var currentVersionPanel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+                currentVersionPanel.Children.Add(new TextBlock 
+                { 
+                    Text = "当前版本", 
+                    Style = (Style)App.Current.Resources["CaptionTextBlockStyle"],
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Opacity = 0.7
+                });
+                currentVersionPanel.Children.Add(new TextBlock 
+                { 
+                    Text = result.CurrentVersion ?? "未知", 
+                    Style = (Style)App.Current.Resources["BodyStrongTextBlockStyle"],
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+                Grid.SetColumn(currentVersionPanel, 0);
+                versionComparePanel.Children.Add(currentVersionPanel);
+
+                // 箭头 - 使用更通用的方法显示箭头
+                var arrowIcon = new SymbolIcon(Symbol.Forward)
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Opacity = 0.6
+                };
+                Grid.SetColumn(arrowIcon, 1);
+                versionComparePanel.Children.Add(arrowIcon);
+
+                // 最新版本
+                var latestVersionPanel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+                latestVersionPanel.Children.Add(new TextBlock 
+                { 
+                    Text = result.IsPrerelease ? "最新预发布版本" : "最新版本", 
+                    Style = (Style)App.Current.Resources["CaptionTextBlockStyle"],
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Opacity = 0.7
+                });
+                
+                var latestVersionText = new TextBlock 
+                { 
+                    Text = result.LatestVersion ?? "未知", 
+                    Style = (Style)App.Current.Resources["BodyStrongTextBlockStyle"],
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                
+                if (result.IsPrerelease)
+                {
+                    latestVersionText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Orange);
+                }
+                
+                latestVersionPanel.Children.Add(latestVersionText);
+                Grid.SetColumn(latestVersionPanel, 2);
+                versionComparePanel.Children.Add(latestVersionPanel);
+
+                versionInfoPanel.Children.Add(versionComparePanel);
+
+                // 预发布版本警告 - 使用SymbolIcon替代FontIcon
+                if (result.IsPrerelease)
+                {
+                    var warningPanel = new StackPanel 
+                    { 
+                        Orientation = Orientation.Horizontal, 
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Spacing = 8
+                    };
+                    
+                    var warningIcon = new SymbolIcon(Symbol.Important)
+                    {
+                        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Orange),
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    warningPanel.Children.Add(warningIcon);
+                    
+                    warningPanel.Children.Add(new TextBlock 
+                    { 
+                        Text = "这是一个预发布版本，可能包含不稳定的功能", 
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"],
+                        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Orange),
+                        VerticalAlignment = VerticalAlignment.Center
+                    });
+                    
+                    versionInfoPanel.Children.Add(warningPanel);
+                }
+
+                stackPanel.Children.Add(versionInfoPanel);
+
+                // 发布说明
+                if (!string.IsNullOrWhiteSpace(result.ReleaseNotes))
+                {
+                    var releaseNotesPanel = new StackPanel { Spacing = 8 };
+                    
+                    releaseNotesPanel.Children.Add(new TextBlock 
+                    { 
+                        Text = "更新内容", 
+                        Style = (Style)App.Current.Resources["BodyStrongTextBlockStyle"] 
+                    });
+
+                    var scrollViewer = new ScrollViewer 
+                    { 
+                        MaxHeight = 150,
+                        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+                    };
+
+                    var releaseNotesText = new TextBlock 
+                    { 
+                        Text = result.ReleaseNotes.Trim(),
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"],
+                        TextWrapping = TextWrapping.Wrap,
+                        IsTextSelectionEnabled = true,
+                        Opacity = 0.8
+                    };
+
+                    scrollViewer.Content = releaseNotesText;
+                    releaseNotesPanel.Children.Add(scrollViewer);
+                    stackPanel.Children.Add(releaseNotesPanel);
+                }
+
+                // 操作提示
+                var actionText = new TextBlock 
+                { 
+                    Text = "是否立即下载并安装更新？",
+                    Style = (Style)App.Current.Resources["BodyTextBlockStyle"],
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 8, 0, 0)
+                };
+                stackPanel.Children.Add(actionText);
                 
                 var dialog = new ContentDialog
                 {
-                    Title = "发现新版本",
-                    Content = $"发现新版本 {result.LatestVersion}，当前版本 {result.CurrentVersion}。\n\n是否立即下载并安装更新？",
+                    Title = result.IsPrerelease ? "发现新的预发布版本" : "发现新版本",
+                    Content = stackPanel,
                     PrimaryButtonText = "立即更新",
                     SecondaryButtonText = "稍后提醒",
                     CloseButtonText = "跳过此版本",
@@ -508,6 +721,7 @@ namespace GameLauncher.Services
         public string? DownloadUrl { get; set; }
         public string? ReleaseNotes { get; set; }
         public string? Error { get; set; }
+        public bool IsPrerelease { get; set; } = false; // 新增：是否为预发布版本
     }
 
     public class GitHubRelease

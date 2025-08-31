@@ -9,8 +9,8 @@
 
   <Identity
     Name="GameLauncher"
-    Publisher="CN=Developer"
-    Version="0.1.1.0" />
+    Publisher="CN=Li"
+    Version="0.2.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="fb617303-b818-4202-b873-8c6eef57e2c2" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
