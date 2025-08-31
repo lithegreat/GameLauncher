@@ -13,9 +13,11 @@ namespace GameLauncher.Services
     {
         private const string AutoUpdateEnabledKey = "AutoUpdateEnabled";
         private const string UpdateFrequencyKey = "UpdateFrequency";
+        private const string IncludePrereleaseKey = "IncludePrerelease"; // 新增：是否包含预发布版本
 
         public bool AutoUpdateEnabled { get; set; } = true; // 默认启用自动更新
         public UpdateFrequency UpdateFrequency { get; set; } = UpdateFrequency.OnStartup; // 默认每次启动检查
+        public bool IncludePrerelease { get; set; } = false; // 默认不包含预发布版本
 
         public static UpdateSettings GetSettings()
         {
@@ -25,6 +27,7 @@ namespace GameLauncher.Services
                 
                 var autoUpdateEnabled = localSettings.Values[AutoUpdateEnabledKey] as bool? ?? true;
                 var updateFrequencyValue = localSettings.Values[UpdateFrequencyKey] as string ?? "OnStartup";
+                var includePrerelease = localSettings.Values[IncludePrereleaseKey] as bool? ?? false;
                 
                 if (!Enum.TryParse<UpdateFrequency>(updateFrequencyValue, out var updateFrequency))
                 {
@@ -34,7 +37,8 @@ namespace GameLauncher.Services
                 return new UpdateSettings
                 {
                     AutoUpdateEnabled = autoUpdateEnabled,
-                    UpdateFrequency = updateFrequency
+                    UpdateFrequency = updateFrequency,
+                    IncludePrerelease = includePrerelease
                 };
             }
             catch (Exception ex)
@@ -51,8 +55,9 @@ namespace GameLauncher.Services
                 var localSettings = ApplicationData.Current.LocalSettings;
                 localSettings.Values[AutoUpdateEnabledKey] = AutoUpdateEnabled;
                 localSettings.Values[UpdateFrequencyKey] = UpdateFrequency.ToString();
+                localSettings.Values[IncludePrereleaseKey] = IncludePrerelease;
                 
-                System.Diagnostics.Debug.WriteLine($"UpdateSettings saved: AutoUpdate={AutoUpdateEnabled}, Frequency={UpdateFrequency}");
+                System.Diagnostics.Debug.WriteLine($"UpdateSettings saved: AutoUpdate={AutoUpdateEnabled}, Frequency={UpdateFrequency}, IncludePrerelease={IncludePrerelease}");
             }
             catch (Exception ex)
             {
@@ -60,12 +65,13 @@ namespace GameLauncher.Services
             }
         }
 
-        public static void SaveSettings(bool autoUpdateEnabled, UpdateFrequency updateFrequency)
+        public static void SaveSettings(bool autoUpdateEnabled, UpdateFrequency updateFrequency, bool includePrerelease = false)
         {
             var settings = new UpdateSettings
             {
                 AutoUpdateEnabled = autoUpdateEnabled,
-                UpdateFrequency = updateFrequency
+                UpdateFrequency = updateFrequency,
+                IncludePrerelease = includePrerelease
             };
             
             settings.SaveSettings();
