@@ -79,11 +79,40 @@ namespace GameLauncher
                     
                     // Set up navigation after the window is activated
                     SetupNavigation();
+                    
+                    // Initialize auto update check
+                    InitializeAutoUpdate();
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"MainWindow_Activated error: {ex.Message}");
                 }
+            }
+        }
+
+        private void InitializeAutoUpdate()
+        {
+            try
+            {
+                Debug.WriteLine("MainWindow: Initializing auto update");
+                
+                // 延迟启动自动更新检查，让应用完全加载完成
+                this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    try
+                    {
+                        UpdateService.StartAutoUpdateCheck();
+                        Debug.WriteLine("MainWindow: Auto update check started");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"MainWindow: Auto update initialization error: {ex.Message}");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"InitializeAutoUpdate error: {ex.Message}");
             }
         }
 

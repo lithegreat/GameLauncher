@@ -49,12 +49,59 @@
                     </StackPanel>
                 </StackPanel>
             </StackPanel>
+
+            <!-- Auto Update Settings -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="自动更新" 
+                           Style="{StaticResource SubtitleTextBlockStyle}"/>
+                
+                <StackPanel Spacing="12">
+                    <!-- Enable Auto Update -->
+                    <ToggleSwitch x:Name="AutoUpdateToggle" 
+                                  Header="启用自动更新"
+                                  OnContent="开启" 
+                                  OffContent="关闭"
+                                  IsOn="True"
+                                  Toggled="AutoUpdateToggle_Toggled"/>
+                    
+                    <TextBlock Text="自动检查并安装应用程序更新" 
+                               Style="{StaticResource CaptionTextBlockStyle}" 
+                               Opacity="0.7"
+                               Margin="0,-8,0,8"/>
+
+                    <!-- Update Frequency -->
+                    <StackPanel x:Name="UpdateFrequencyPanel" Spacing="8">
+                        <TextBlock Text="检查频率" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        
+                        <RadioButton x:Name="OnStartupRadio" 
+                                     Content="每次启动时检查" 
+                                     GroupName="UpdateFrequencyGroup"
+                                     Click="UpdateFrequencyRadio_Click"
+                                     Tag="OnStartup"
+                                     IsChecked="True"/>
+                        
+                        <RadioButton x:Name="WeeklyRadio" 
+                                     Content="每周检查" 
+                                     GroupName="UpdateFrequencyGroup"
+                                     Click="UpdateFrequencyRadio_Click"
+                                     Tag="Weekly"/>
+                    </StackPanel>
+
+                    <!-- Manual Check Button -->
+                    <Button x:Name="CheckUpdateButton" 
+                            Content="立即检查更新" 
+                            Click="CheckUpdateButton_Click"
+                            Margin="0,8,0,0"/>
+                </StackPanel>
+            </StackPanel>
             
             <!-- App Information -->
             <StackPanel Spacing="8">
                 <TextBlock Text="应用信息" 
                            Style="{StaticResource SubtitleTextBlockStyle}"/>
-                <TextBlock Text="GameLauncher v1.0" 
+                <TextBlock x:Name="VersionTextBlock"
+                           Text="GameLauncher v1.0" 
                            Style="{StaticResource BodyTextBlockStyle}" 
                            Opacity="0.8"/>
                 <TextBlock Text="一个简单的游戏启动器应用程序" 
