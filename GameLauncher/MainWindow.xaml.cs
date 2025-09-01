@@ -279,7 +279,7 @@ namespace GameLauncher
                 var titleBar = appWindow?.TitleBar;
                 if (titleBar != null)
                 {
-                    var titleBarHeight = 48;
+                    var titleBarHeight = 32; // Changed from 48 to 32 to match Windows system buttons
                     var systemButtonsWidth = 138;
                     var windowWidth = (int)this.Bounds.Width;
                     

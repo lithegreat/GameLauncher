@@ -15,10 +15,10 @@
   <mp:PhoneIdentity PhoneProductId="fb617303-b818-4202-b873-8c6eef57e2c2" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>Game Launcher</DisplayName>
+    <DisplayName>游戏启动器</DisplayName>
     <PublisherDisplayName>Developer</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
-    <Description>A modern game launcher with game management and quick launch features</Description>
+    <Description>一个现代化的游戏启动器，支持游戏管理和快速启动</Description>
   </Properties>
 
   <Dependencies>
@@ -35,8 +35,8 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="Game Launcher"
-        Description="A modern game launcher with game management and quick launch features"
+        DisplayName="游戏启动器"
+        Description="一个现代化的游戏启动器，支持游戏管理和快速启动"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">

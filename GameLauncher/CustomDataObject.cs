@@ -13,6 +13,8 @@ namespace GameLauncher
         private string _steamAppId = string.Empty;
         private bool _isSteamGame = false;
         private int _displayOrder = 0;
+        private string _categoryId = string.Empty;
+        private string _category = "未分类";
 
         public string Title
         {
@@ -54,7 +56,7 @@ namespace GameLauncher
         }
 
         /// <summary>
-        /// Steam AppID (仅对于 Steam 游戏)
+        /// Steam AppID (仅用于 Steam 游戏)
         /// </summary>
         public string SteamAppId
         {
@@ -86,7 +88,7 @@ namespace GameLauncher
         }
 
         /// <summary>
-        /// 显示顺序，用于保持用户拖拽后的排序
+        /// 显示顺序，用于保存用户拖拽排序结果
         /// </summary>
         public int DisplayOrder
         {
@@ -98,6 +100,53 @@ namespace GameLauncher
                     _displayOrder = value;
                     OnPropertyChanged();
                 }
+            }
+        }
+
+        /// <summary>
+        /// 游戏分类ID
+        /// </summary>
+        public string CategoryId
+        {
+            get => _categoryId;
+            set
+            {
+                if (_categoryId != value)
+                {
+                    _categoryId = value ?? string.Empty;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CategoryColor)); // 通知颜色属性也发生了变化
+                }
+            }
+        }
+
+        /// <summary>
+        /// 游戏分类名称
+        /// </summary>
+        public string Category
+        {
+            get => _category;
+            set
+            {
+                if (_category != value)
+                {
+                    _category = value ?? "未分类";
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 分类颜色（十六进制颜色代码）
+        /// </summary>
+        public string CategoryColor
+        {
+            get
+            {
+                // 根据 CategoryId 从 CategoryService 获取颜色
+                var categoryService = GameLauncher.Services.CategoryService.Instance;
+                var category = categoryService.GetCategoryById(_categoryId);
+                return category?.Color ?? "#757575"; // 默认灰色
             }
         }
 
