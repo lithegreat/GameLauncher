@@ -4,14 +4,21 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:GameLauncher"
+    xmlns:pages="using:GameLauncher.Pages"
+    xmlns:models="using:GameLauncher.Models"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
     <Page.Resources>
+        <!-- 颜色转换器 -->
+        <pages:ColorStringToColorConverter x:Key="ColorConverter"/>
+        
         <!-- Context Menu for Game Items -->
         <MenuFlyout x:Key="GameContextMenu">
             <MenuFlyoutItem x:Name="OpenGameMenuItem" Text="打开游戏" Icon="Play" Click="OpenGameMenuItem_Click"/>
+            <MenuFlyoutItem x:Name="SetCategoryMenuItem" Text="设置分类" Icon="Tag" Click="SetCategoryMenuItem_Click"/>
+            <MenuFlyoutSeparator/>
             <MenuFlyoutItem x:Name="DeleteGameMenuItem" Text="删除游戏" Icon="Delete" Click="DeleteGameMenuItem_Click"/>
             <MenuFlyoutItem x:Name="OpenGameDirectoryMenuItem" Text="打开游戏目录" Icon="Folder" Click="OpenGameDirectoryMenuItem_Click"/>
             <MenuFlyoutSeparator x:Name="SteamSeparator"/>
@@ -59,7 +66,31 @@
                                    Style="{StaticResource SubtitleTextBlockStyle}" 
                                    TextWrapping="Wrap"
                                    MaxLines="2"
-                                   Margin="0,0,0,8"/>
+                                   Margin="0,0,0,4"/>
+                        
+                        <!-- 分类信息带颜色指示器 -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <!-- 分类颜色圆点 -->
+                            <Ellipse Grid.Column="0" 
+                                     Width="8" 
+                                     Height="8" 
+                                     Margin="0,0,6,0"
+                                     VerticalAlignment="Center">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="{x:Bind CategoryColor, Converter={StaticResource ColorConverter}}"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <!-- 分类文本 -->
+                            <TextBlock Grid.Column="1"
+                                       Text="{x:Bind Category}" 
+                                       Style="{StaticResource CaptionTextBlockStyle}" 
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        
                         <TextBlock Text="{x:Bind ExecutablePath}" 
                                    Style="{StaticResource CaptionTextBlockStyle}" 
                                    TextWrapping="Wrap"
@@ -89,6 +120,11 @@
                                TextAlignment="Center"
                                TextWrapping="Wrap"
                                MaxLines="2"/>
+                    <TextBlock Text="{x:Bind Category}" 
+                               Style="{StaticResource CaptionTextBlockStyle}" 
+                               TextAlignment="Center"
+                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                               Margin="0,4,0,0"/>
                     <TextBlock Text="{x:Bind ExecutablePath}" 
                                Style="{StaticResource CaptionTextBlockStyle}" 
                                TextAlignment="Center"
@@ -104,10 +140,11 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header with buttons -->
+        <!-- Header with title and main buttons -->
         <Grid Grid.Row="0" Margin="24,24,24,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -159,11 +196,67 @@
             </StackPanel>
         </Grid>
 
+        <!-- Category filter section -->
+        <Grid Grid.Row="1" Margin="24,16,24,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="分类筛选:" 
+                       VerticalAlignment="Center" 
+                       Margin="0,0,12,0"
+                       Style="{StaticResource BodyTextBlockStyle}"/>
+
+            <ComboBox Grid.Column="1" x:Name="CategoryComboBox"
+                      ItemsSource="{x:Bind Categories, Mode=OneWay}"
+                      SelectedIndex="0"
+                      SelectionChanged="CategoryComboBox_SelectionChanged"
+                      HorizontalAlignment="Stretch"
+                      MinWidth="200">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="models:GameCategory">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <!-- 分类颜色圆点 -->
+                            <Ellipse Grid.Column="0" 
+                                     Width="12" 
+                                     Height="12" 
+                                     Margin="0,0,8,0"
+                                     VerticalAlignment="Center">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="{x:Bind Color, Converter={StaticResource ColorConverter}}"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <!-- 分类名称和数量 -->
+                            <TextBlock Grid.Column="1" 
+                                       Text="{x:Bind DisplayText}" 
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <Button Grid.Column="2" x:Name="ManageCategoriesButton" 
+                    Click="ManageCategoriesButton_Click" 
+                    Style="{StaticResource DefaultButtonStyle}"
+                    Margin="12,0,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE8B7;" FontSize="16"/>
+                    <TextBlock Text="管理分类"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
         <!-- Games content -->
-        <ScrollViewer Grid.Row="1" Padding="24">
+        <ScrollViewer Grid.Row="2" Padding="24">
             <GridView
                 x:Name="ContentGridView"
-                ItemsSource="{x:Bind Items, Mode=OneWay}"
+                ItemsSource="{x:Bind FilteredItems, Mode=OneWay}"
                 ItemTemplate="{StaticResource ImageTextTemplate}"
                 IsItemClickEnabled="True"
                 CanDragItems="True"
