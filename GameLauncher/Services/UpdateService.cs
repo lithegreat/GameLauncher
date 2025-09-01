@@ -29,6 +29,9 @@ namespace GameLauncher.Services
         private static readonly TimeSpan _minimumCheckInterval = TimeSpan.FromMinutes(30); // 最小检查间隔30分钟
         private static bool _hasShownUpdateDialogThisSession = false; // 本次会话是否已显示过更新对话框
         private static string? _lastShownVersion = null; // 上次显示对话框的版本
+        private static DateTime _lastRemindLaterTime = DateTime.MinValue; // 上次点击"稍后提醒"的时间
+        private static string? _remindLaterVersion = null; // 稍后提醒的版本
+        private static readonly TimeSpan _remindLaterInterval = TimeSpan.FromHours(6); // 稍后提醒的间隔时间（6小时）
 
         static UpdateService()
         {
@@ -411,9 +414,12 @@ namespace GameLauncher.Services
                 _ => TimeSpan.Zero
             };
 
+            Debug.WriteLine($"UpdateService: Starting auto update check with interval: {interval}");
+            Debug.WriteLine($"UpdateService: Current session state - HasShownDialog: {_hasShownUpdateDialogThisSession}, " +
+                          $"LastShownVersion: {_lastShownVersion}, RemindLaterVersion: {_remindLaterVersion}");
+
             if (interval > TimeSpan.Zero)
             {
-                Debug.WriteLine($"UpdateService: Starting auto update check with interval: {interval}");
                 _updateTimer = new Timer(async _ => await PerformAutoUpdateCheck(false), null, TimeSpan.Zero, interval);
             }
             else if (settings.UpdateFrequency == UpdateFrequency.OnStartup)
@@ -451,7 +457,28 @@ namespace GameLauncher.Services
             _hasShownUpdateDialogThisSession = false;
             _lastShownVersion = null;
             _lastSkippedVersion = null;
+            _remindLaterVersion = null;
+            _lastRemindLaterTime = DateTime.MinValue;
             Debug.WriteLine("UpdateService: Session state reset");
+        }
+
+        // 添加清除稍后提醒状态的方法
+        public static void ClearRemindLaterState()
+        {
+            _remindLaterVersion = null;
+            _lastRemindLaterTime = DateTime.MinValue;
+            Debug.WriteLine("UpdateService: Remind later state cleared");
+        }
+
+        // 获取稍后提醒的剩余时间（用于调试或UI显示）
+        public static TimeSpan? GetRemindLaterRemainingTime()
+        {
+            if (_remindLaterVersion == null) return null;
+            
+            var elapsed = DateTime.Now - _lastRemindLaterTime;
+            var remaining = _remindLaterInterval - elapsed;
+            
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
         }
 
         private static async Task PerformAutoUpdateCheck(bool showErrorDialog = true)
@@ -484,6 +511,16 @@ namespace GameLauncher.Services
                     if (_hasShownUpdateDialogThisSession && _lastShownVersion == result.LatestVersion)
                     {
                         Debug.WriteLine($"UpdateService: Update dialog for version {result.LatestVersion} already shown this session");
+                        return;
+                    }
+                    
+                    // 检查稍后提醒状态
+                    if (_remindLaterVersion == result.LatestVersion && 
+                        DateTime.Now - _lastRemindLaterTime < _remindLaterInterval)
+                    {
+                        var remainingTime = _remindLaterInterval - (DateTime.Now - _lastRemindLaterTime);
+                        Debug.WriteLine($"UpdateService: Version {result.LatestVersion} is in 'remind later' period. " +
+                                      $"Will remind again in {remainingTime.TotalMinutes:F0} minutes");
                         return;
                     }
                     
@@ -706,10 +743,13 @@ namespace GameLauncher.Services
                 }
                 else if (dialogResult == ContentDialogResult.Secondary) // 用户点击了"稍后提醒"
                 {
-                    // 稍后提醒：重置会话状态，但不跳过版本
-                    _hasShownUpdateDialogThisSession = false;
-                    _lastShownVersion = null;
-                    Debug.WriteLine("UpdateService: User chose to be reminded later");
+                    // 稍后提醒：设置稍后提醒状态，不重置会话状态
+                    _remindLaterVersion = result.LatestVersion;
+                    _lastRemindLaterTime = DateTime.Now;
+                    _hasShownUpdateDialogThisSession = true; // 保持会话状态，避免立即再次弹出
+                    _lastShownVersion = result.LatestVersion;
+                    Debug.WriteLine($"UpdateService: User chose to be reminded later for version {result.LatestVersion}. " +
+                                  $"Will remind again after {_remindLaterInterval.TotalHours} hours");
                 }
             }
             catch (Exception ex)
