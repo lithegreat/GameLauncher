@@ -1480,23 +1480,23 @@ namespace GameLauncher.Pages
             }
         }
 
-        private async void ContentGridView_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+        private void ContentGridView_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
         {
             try
             {
-                // 拖拽操作完成后，保存新的游戏顺序
-                await SaveCurrentGameOrder();
-                System.Diagnostics.Debug.WriteLine("拖拽重排完成，游戏顺序已保存");
+                // 拖动操作完成后，保存最新的游戏顺序
+                _ = SaveCurrentGameOrder();
+                System.Diagnostics.Debug.WriteLine("拖动操作完成，游戏顺序已保存");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"处理拖拽完成事件时出错: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"处理拖动完成事件时出错: {ex.Message}");
             }
         }
 
         #region Category Management Methods
 
-        private async void CategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void CategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is ComboBox comboBox && comboBox.SelectedItem is GameCategory selectedCategory)
             {

@@ -101,7 +101,7 @@ namespace GameLauncher.Services
                 
                 // 查找 MSIX 安装包
                 var msixAsset = releaseInfo.Assets?.FirstOrDefault(a => 
-                    a.Name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase));
+                    !string.IsNullOrEmpty(a.Name) && a.Name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase));
 
                 if (hasUpdate && msixAsset == null)
                 {
@@ -497,7 +497,7 @@ namespace GameLauncher.Services
                     {
                         App.Current.MainWindow.DispatcherQueue.TryEnqueue(async () =>
                         {
-                            await ShowUpdateErrorDialog(result.Error);
+                            await ShowUpdateErrorDialog(result.Error ?? "δ?????");
                         });
                     }
                     return;
@@ -582,9 +582,15 @@ namespace GameLauncher.Services
                 var titleText = new TextBlock
                 {
                     Text = result.IsPrerelease ? "发现新的预发布版本" : "发现新版本",
-                    Style = (Style)App.Current.Resources["SubtitleTextBlockStyle"],
                     HorizontalAlignment = HorizontalAlignment.Center
                 };
+
+                // Try to get style safely, fallback to default if null
+                if (App.Current?.Resources?.TryGetValue("SubtitleTextBlockStyle", out var subtitleStyle) == true)
+                {
+                    titleText.Style = (Style)subtitleStyle;
+                }
+
                 versionInfoPanel.Children.Add(titleText);
 
                 // 版本对比信息
@@ -595,19 +601,28 @@ namespace GameLauncher.Services
 
                 // 当前版本
                 var currentVersionPanel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-                currentVersionPanel.Children.Add(new TextBlock 
+                var currentVersionCaptionText = new TextBlock 
                 { 
                     Text = "当前版本", 
-                    Style = (Style)App.Current.Resources["CaptionTextBlockStyle"],
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Opacity = 0.7
-                });
-                currentVersionPanel.Children.Add(new TextBlock 
+                };
+                if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle) == true)
+                {
+                    currentVersionCaptionText.Style = (Style)captionStyle;
+                }
+                currentVersionPanel.Children.Add(currentVersionCaptionText);
+
+                var currentVersionStrongText = new TextBlock 
                 { 
                     Text = result.CurrentVersion ?? "未知", 
-                    Style = (Style)App.Current.Resources["BodyStrongTextBlockStyle"],
                     HorizontalAlignment = HorizontalAlignment.Center
-                });
+                };
+                if (App.Current?.Resources?.TryGetValue("BodyStrongTextBlockStyle", out var bodyStrongStyle) == true)
+                {
+                    currentVersionStrongText.Style = (Style)bodyStrongStyle;
+                }
+                currentVersionPanel.Children.Add(currentVersionStrongText);
                 Grid.SetColumn(currentVersionPanel, 0);
                 versionComparePanel.Children.Add(currentVersionPanel);
 
@@ -623,20 +638,27 @@ namespace GameLauncher.Services
 
                 // 最新版本
                 var latestVersionPanel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-                latestVersionPanel.Children.Add(new TextBlock 
+                var latestVersionCaptionText = new TextBlock 
                 { 
                     Text = result.IsPrerelease ? "最新预发布版本" : "最新版本", 
-                    Style = (Style)App.Current.Resources["CaptionTextBlockStyle"],
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Opacity = 0.7
-                });
+                };
+                if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle2) == true)
+                {
+                    latestVersionCaptionText.Style = (Style)captionStyle2;
+                }
+                latestVersionPanel.Children.Add(latestVersionCaptionText);
                 
                 var latestVersionText = new TextBlock 
                 { 
                     Text = result.LatestVersion ?? "未知", 
-                    Style = (Style)App.Current.Resources["BodyStrongTextBlockStyle"],
                     HorizontalAlignment = HorizontalAlignment.Center
                 };
+                if (App.Current?.Resources?.TryGetValue("BodyStrongTextBlockStyle", out var bodyStrongStyle2) == true)
+                {
+                    latestVersionText.Style = (Style)bodyStrongStyle2;
+                }
                 
                 if (result.IsPrerelease)
                 {
@@ -666,13 +688,17 @@ namespace GameLauncher.Services
                     };
                     warningPanel.Children.Add(warningIcon);
                     
-                    warningPanel.Children.Add(new TextBlock 
+                    var warningTextBlock = new TextBlock 
                     { 
                         Text = "这是一个预发布版本，可能包含不稳定的功能", 
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"],
                         Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Orange),
                         VerticalAlignment = VerticalAlignment.Center
-                    });
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle3) == true)
+                    {
+                        warningTextBlock.Style = (Style)captionStyle3;
+                    }
+                    warningPanel.Children.Add(warningTextBlock);
                     
                     versionInfoPanel.Children.Add(warningPanel);
                 }
@@ -684,11 +710,15 @@ namespace GameLauncher.Services
                 {
                     var releaseNotesPanel = new StackPanel { Spacing = 8 };
                     
-                    releaseNotesPanel.Children.Add(new TextBlock 
+                    var releaseNotesTitle = new TextBlock 
                     { 
-                        Text = "更新内容", 
-                        Style = (Style)App.Current.Resources["BodyStrongTextBlockStyle"] 
-                    });
+                        Text = "更新内容"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("BodyStrongTextBlockStyle", out var bodyStrongStyle3) == true)
+                    {
+                        releaseNotesTitle.Style = (Style)bodyStrongStyle3;
+                    }
+                    releaseNotesPanel.Children.Add(releaseNotesTitle);
 
                     var scrollViewer = new ScrollViewer 
                     { 
@@ -700,11 +730,14 @@ namespace GameLauncher.Services
                     var releaseNotesText = new TextBlock 
                     { 
                         Text = result.ReleaseNotes.Trim(),
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"],
                         TextWrapping = TextWrapping.Wrap,
                         IsTextSelectionEnabled = true,
                         Opacity = 0.8
                     };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle4) == true)
+                    {
+                        releaseNotesText.Style = (Style)captionStyle4;
+                    }
 
                     scrollViewer.Content = releaseNotesText;
                     releaseNotesPanel.Children.Add(scrollViewer);
@@ -715,10 +748,13 @@ namespace GameLauncher.Services
                 var actionText = new TextBlock 
                 { 
                     Text = "是否立即下载并安装更新？",
-                    Style = (Style)App.Current.Resources["BodyTextBlockStyle"],
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 8, 0, 0)
                 };
+                if (App.Current?.Resources?.TryGetValue("BodyTextBlockStyle", out var bodyStyle) == true)
+                {
+                    actionText.Style = (Style)bodyStyle;
+                }
                 stackPanel.Children.Add(actionText);
                 
                 var dialog = new ContentDialog
@@ -827,72 +863,112 @@ namespace GameLauncher.Services
                     // 构建更详细的错误信息
                     var errorContent = new StackPanel { Spacing = 12 };
                     
-                    errorContent.Children.Add(new TextBlock 
+                    var errorTitleText = new TextBlock 
                     { 
-                        Text = "更新安装失败，可能的原因包括：",
-                        Style = (Style)App.Current.Resources["BodyTextBlockStyle"]
-                    });
+                        Text = "更新安装失败，可能的原因包括："
+                    };
+                    if (App.Current?.Resources?.TryGetValue("BodyTextBlockStyle", out var bodyStyle2) == true)
+                    {
+                        errorTitleText.Style = (Style)bodyStyle2;
+                    }
+                    errorContent.Children.Add(errorTitleText);
 
                     var reasonsList = new StackPanel { Spacing = 4, Margin = new Thickness(16, 0, 0, 0) };
                     
-                    reasonsList.Children.Add(new TextBlock 
+                    var reasonText1 = new TextBlock 
                     { 
-                        Text = "? 应用程序正在运行中（请关闭所有实例后重试）",
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
-                    });
+                        Text = "? 应用程序正在运行中（请关闭所有实例后重试）"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle5) == true)
+                    {
+                        reasonText1.Style = (Style)captionStyle5;
+                    }
+                    reasonsList.Children.Add(reasonText1);
                     
-                    reasonsList.Children.Add(new TextBlock 
+                    var reasonText2 = new TextBlock 
                     { 
-                        Text = "? 网络连接中断导致下载不完整",
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
-                    });
+                        Text = "? 网络连接中断导致下载不完整"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle6) == true)
+                    {
+                        reasonText2.Style = (Style)captionStyle6;
+                    }
+                    reasonsList.Children.Add(reasonText2);
                     
-                    reasonsList.Children.Add(new TextBlock 
+                    var reasonText3 = new TextBlock 
                     { 
-                        Text = "? 系统权限不足",
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
-                    });
+                        Text = "? 系统权限不足"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle7) == true)
+                    {
+                        reasonText3.Style = (Style)captionStyle7;
+                    }
+                    reasonsList.Children.Add(reasonText3);
                     
-                    reasonsList.Children.Add(new TextBlock 
+                    var reasonText4 = new TextBlock 
                     { 
-                        Text = "? 磁盘空间不足",
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
-                    });
+                        Text = "? 磁盘空间不足"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle8) == true)
+                    {
+                        reasonText4.Style = (Style)captionStyle8;
+                    }
+                    reasonsList.Children.Add(reasonText4);
 
                     errorContent.Children.Add(reasonsList);
 
-                    errorContent.Children.Add(new TextBlock 
+                    var solutionsTitle = new TextBlock 
                     { 
                         Text = "建议解决方案：",
-                        Style = (Style)App.Current.Resources["BodyStrongTextBlockStyle"],
                         Margin = new Thickness(0, 8, 0, 0)
-                    });
+                    };
+                    if (App.Current?.Resources?.TryGetValue("BodyStrongTextBlockStyle", out var bodyStrongStyle4) == true)
+                    {
+                        solutionsTitle.Style = (Style)bodyStrongStyle4;
+                    }
+                    errorContent.Children.Add(solutionsTitle);
 
                     var solutionsList = new StackPanel { Spacing = 4, Margin = new Thickness(16, 0, 0, 0) };
                     
-                    solutionsList.Children.Add(new TextBlock 
+                    var solutionText1 = new TextBlock 
                     { 
-                        Text = "1. 完全关闭应用程序后重新尝试更新",
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
-                    });
+                        Text = "1. 完全关闭应用程序后重新尝试更新"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle9) == true)
+                    {
+                        solutionText1.Style = (Style)captionStyle9;
+                    }
+                    solutionsList.Children.Add(solutionText1);
                     
-                    solutionsList.Children.Add(new TextBlock 
+                    var solutionText2 = new TextBlock 
                     { 
-                        Text = "2. 检查网络连接状态",
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
-                    });
+                        Text = "2. 检查网络连接状态"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle10) == true)
+                    {
+                        solutionText2.Style = (Style)captionStyle10;
+                    }
+                    solutionsList.Children.Add(solutionText2);
                     
-                    solutionsList.Children.Add(new TextBlock 
+                    var solutionText3 = new TextBlock 
                     { 
-                        Text = "3. 以管理员身份运行应用程序",
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
-                    });
+                        Text = "3. 以管理员身份运行应用程序"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle11) == true)
+                    {
+                        solutionText3.Style = (Style)captionStyle11;
+                    }
+                    solutionsList.Children.Add(solutionText3);
                     
-                    solutionsList.Children.Add(new TextBlock 
+                    var solutionText4 = new TextBlock 
                     { 
-                        Text = "4. 手动从 GitHub 下载并安装最新版本",
-                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
-                    });
+                        Text = "4. 手动从 GitHub 下载并安装最新版本"
+                    };
+                    if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle12) == true)
+                    {
+                        solutionText4.Style = (Style)captionStyle12;
+                    }
+                    solutionsList.Children.Add(solutionText4);
 
                     errorContent.Children.Add(solutionsList);
 
@@ -918,7 +994,7 @@ namespace GameLauncher.Services
                         // 用户选择手动下载，打开 GitHub 发布页面
                         try
                         {
-                            var process = new Process
+                            using var process = new Process
                             {
                                 StartInfo = new ProcessStartInfo
                                 {
@@ -926,7 +1002,7 @@ namespace GameLauncher.Services
                                     UseShellExecute = true
                                 }
                             };
-                            process.Start();
+                            _ = process.Start(); // Explicitly ignore the return value to fix CS8602 warning
                         }
                         catch (Exception ex)
                         {
