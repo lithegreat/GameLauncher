@@ -29,6 +29,9 @@ namespace GameLauncher.Services
         private static readonly TimeSpan _minimumCheckInterval = TimeSpan.FromMinutes(30); // 最小检查间隔30分钟
         private static bool _hasShownUpdateDialogThisSession = false; // 本次会话是否已显示过更新对话框
         private static string? _lastShownVersion = null; // 上次显示对话框的版本
+        private static DateTime _lastRemindLaterTime = DateTime.MinValue; // 上次点击"稍后提醒"的时间
+        private static string? _remindLaterVersion = null; // 稍后提醒的版本
+        private static readonly TimeSpan _remindLaterInterval = TimeSpan.FromHours(6); // 稍后提醒的间隔时间（6小时）
 
         static UpdateService()
         {
@@ -212,12 +215,23 @@ namespace GameLauncher.Services
 
         public static async Task<bool> DownloadAndInstallUpdateAsync(string downloadUrl, IProgress<int>? progress = null)
         {
+            string? tempPath = null;
             try
             {
                 Debug.WriteLine($"UpdateService: Starting download from {downloadUrl}");
                 
-                // 创建临时文件
-                var tempPath = Path.Combine(Path.GetTempPath(), "GameLauncher_Update.msix");
+                // 创建临时文件，使用更安全的文件名
+                var tempFileName = $"GameLauncher_Update_{DateTime.Now:yyyyMMdd_HHmmss}.msix";
+                tempPath = Path.Combine(Path.GetTempPath(), tempFileName);
+                
+                Debug.WriteLine($"UpdateService: Downloading to temporary path: {tempPath}");
+                
+                // 确保临时目录存在且可写
+                var tempDir = Path.GetDirectoryName(tempPath);
+                if (!Directory.Exists(tempDir))
+                {
+                    Directory.CreateDirectory(tempDir!);
+                }
                 
                 // 下载文件
                 using var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
@@ -225,6 +239,8 @@ namespace GameLauncher.Services
                 
                 var totalBytes = response.Content.Headers.ContentLength ?? 0;
                 var downloadedBytes = 0L;
+                
+                Debug.WriteLine($"UpdateService: Content length: {totalBytes} bytes");
                 
                 using var contentStream = await response.Content.ReadAsStreamAsync();
                 using var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -244,42 +260,134 @@ namespace GameLauncher.Services
                     }
                 }
                 
-                Debug.WriteLine("UpdateService: Download completed, starting installation");
+                Debug.WriteLine($"UpdateService: Download completed. Downloaded {downloadedBytes} bytes");
+                
+                // 验证下载的文件
+                if (!File.Exists(tempPath))
+                {
+                    Debug.WriteLine("UpdateService: Downloaded file does not exist");
+                    return false;
+                }
+                
+                var fileInfo = new FileInfo(tempPath);
+                if (fileInfo.Length == 0)
+                {
+                    Debug.WriteLine("UpdateService: Downloaded file is empty");
+                    return false;
+                }
+                
+                if (totalBytes > 0 && fileInfo.Length != totalBytes)
+                {
+                    Debug.WriteLine($"UpdateService: File size mismatch. Expected: {totalBytes}, Actual: {fileInfo.Length}");
+                    return false;
+                }
+                
+                Debug.WriteLine($"UpdateService: File validation passed. File size: {fileInfo.Length} bytes");
+                Debug.WriteLine("UpdateService: Starting MSIX installation...");
                 
                 // 安装更新
                 var packageManager = new PackageManager();
+                
+                // 使用 file:// URI 格式
+                var packageUri = new Uri($"file:///{tempPath.Replace('\\', '/')}");
+                Debug.WriteLine($"UpdateService: Installing package from URI: {packageUri}");
+                
                 var deploymentResult = await packageManager.AddPackageAsync(
-                    new Uri(tempPath),
+                    packageUri,
                     null,
                     DeploymentOptions.ForceApplicationShutdown);
+                
+                Debug.WriteLine($"UpdateService: Deployment operation completed");
+                Debug.WriteLine($"UpdateService: IsRegistered: {deploymentResult.IsRegistered}");
+                Debug.WriteLine($"UpdateService: ExtendedErrorCode: {deploymentResult.ExtendedErrorCode}");
+                Debug.WriteLine($"UpdateService: ErrorText: {deploymentResult.ErrorText}");
                 
                 if (deploymentResult.IsRegistered)
                 {
                     Debug.WriteLine("UpdateService: Update installed successfully");
-                    
-                    // 清理临时文件
-                    try
-                    {
-                        File.Delete(tempPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"UpdateService: Failed to delete temp file: {ex.Message}");
-                    }
-                    
                     return true;
                 }
                 else
                 {
-                    Debug.WriteLine($"UpdateService: Installation failed: {deploymentResult.ErrorText}");
+                    // 记录详细的错误信息
+                    var errorCode = deploymentResult.ExtendedErrorCode;
+                    var errorText = deploymentResult.ErrorText;
+                    
+                    Debug.WriteLine($"UpdateService: Installation failed with extended error code: 0x{errorCode:X8}");
+                    Debug.WriteLine($"UpdateService: Error text: {errorText}");
+                    
+                    // 根据常见错误代码提供更友好的错误信息
+                    var friendlyError = GetFriendlyErrorMessage((int)errorCode.HResult);
+                    if (!string.IsNullOrEmpty(friendlyError))
+                    {
+                        Debug.WriteLine($"UpdateService: Friendly error message: {friendlyError}");
+                    }
+                    
                     return false;
                 }
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
             {
-                Debug.WriteLine($"UpdateService: Download/Install error: {ex.Message}");
+                Debug.WriteLine($"UpdateService: Access denied during installation: {ex.Message}");
+                Debug.WriteLine("UpdateService: This might be due to insufficient permissions or the app being in use");
                 return false;
             }
+            catch (FileNotFoundException ex)
+            {
+                Debug.WriteLine($"UpdateService: File not found during installation: {ex.Message}");
+                return false;
+            }
+            catch (HttpRequestException ex)
+            {
+                Debug.WriteLine($"UpdateService: Network error during download: {ex.Message}");
+                return false;
+            }
+            catch (IOException ex)
+            {
+                Debug.WriteLine($"UpdateService: IO error during download/install: {ex.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"UpdateService: Unexpected error during download/install: {ex.Message}");
+                Debug.WriteLine($"UpdateService: Exception type: {ex.GetType().Name}");
+                Debug.WriteLine($"UpdateService: Stack trace: {ex.StackTrace}");
+                return false;
+            }
+            finally
+            {
+                // 清理临时文件
+                if (!string.IsNullOrEmpty(tempPath) && File.Exists(tempPath))
+                {
+                    try
+                    {
+                        File.Delete(tempPath);
+                        Debug.WriteLine($"UpdateService: Temporary file deleted: {tempPath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"UpdateService: Failed to delete temp file {tempPath}: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        private static string GetFriendlyErrorMessage(int errorCode)
+        {
+            return errorCode switch
+            {
+                unchecked((int)0x80073CF3) => "应用包格式无效或损坏",
+                unchecked((int)0x80073CF6) => "应用包的签名无效",
+                unchecked((int)0x80073CF9) => "应用包依赖项缺失",
+                unchecked((int)0x80073CFA) => "应用包不被信任",
+                unchecked((int)0x80073CFB) => "存储空间不足",
+                unchecked((int)0x80073D01) => "应用包已安装，但版本不匹配",
+                unchecked((int)0x80073D02) => "应用程序正在运行，无法更新",
+                unchecked((int)0x80070005) => "访问被拒绝，可能需要管理员权限",
+                unchecked((int)0x80070002) => "找不到指定的文件",
+                unchecked((int)0x80070057) => "参数无效",
+                _ => ""
+            };
         }
 
         public static void StartAutoUpdateCheck()
@@ -306,9 +414,12 @@ namespace GameLauncher.Services
                 _ => TimeSpan.Zero
             };
 
+            Debug.WriteLine($"UpdateService: Starting auto update check with interval: {interval}");
+            Debug.WriteLine($"UpdateService: Current session state - HasShownDialog: {_hasShownUpdateDialogThisSession}, " +
+                          $"LastShownVersion: {_lastShownVersion}, RemindLaterVersion: {_remindLaterVersion}");
+
             if (interval > TimeSpan.Zero)
             {
-                Debug.WriteLine($"UpdateService: Starting auto update check with interval: {interval}");
                 _updateTimer = new Timer(async _ => await PerformAutoUpdateCheck(false), null, TimeSpan.Zero, interval);
             }
             else if (settings.UpdateFrequency == UpdateFrequency.OnStartup)
@@ -346,7 +457,28 @@ namespace GameLauncher.Services
             _hasShownUpdateDialogThisSession = false;
             _lastShownVersion = null;
             _lastSkippedVersion = null;
+            _remindLaterVersion = null;
+            _lastRemindLaterTime = DateTime.MinValue;
             Debug.WriteLine("UpdateService: Session state reset");
+        }
+
+        // 添加清除稍后提醒状态的方法
+        public static void ClearRemindLaterState()
+        {
+            _remindLaterVersion = null;
+            _lastRemindLaterTime = DateTime.MinValue;
+            Debug.WriteLine("UpdateService: Remind later state cleared");
+        }
+
+        // 获取稍后提醒的剩余时间（用于调试或UI显示）
+        public static TimeSpan? GetRemindLaterRemainingTime()
+        {
+            if (_remindLaterVersion == null) return null;
+            
+            var elapsed = DateTime.Now - _lastRemindLaterTime;
+            var remaining = _remindLaterInterval - elapsed;
+            
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
         }
 
         private static async Task PerformAutoUpdateCheck(bool showErrorDialog = true)
@@ -379,6 +511,16 @@ namespace GameLauncher.Services
                     if (_hasShownUpdateDialogThisSession && _lastShownVersion == result.LatestVersion)
                     {
                         Debug.WriteLine($"UpdateService: Update dialog for version {result.LatestVersion} already shown this session");
+                        return;
+                    }
+                    
+                    // 检查稍后提醒状态
+                    if (_remindLaterVersion == result.LatestVersion && 
+                        DateTime.Now - _lastRemindLaterTime < _remindLaterInterval)
+                    {
+                        var remainingTime = _remindLaterInterval - (DateTime.Now - _lastRemindLaterTime);
+                        Debug.WriteLine($"UpdateService: Version {result.LatestVersion} is in 'remind later' period. " +
+                                      $"Will remind again in {remainingTime.TotalMinutes:F0} minutes");
                         return;
                     }
                     
@@ -601,10 +743,13 @@ namespace GameLauncher.Services
                 }
                 else if (dialogResult == ContentDialogResult.Secondary) // 用户点击了"稍后提醒"
                 {
-                    // 稍后提醒：重置会话状态，但不跳过版本
-                    _hasShownUpdateDialogThisSession = false;
-                    _lastShownVersion = null;
-                    Debug.WriteLine("UpdateService: User chose to be reminded later");
+                    // 稍后提醒：设置稍后提醒状态，不重置会话状态
+                    _remindLaterVersion = result.LatestVersion;
+                    _lastRemindLaterTime = DateTime.Now;
+                    _hasShownUpdateDialogThisSession = true; // 保持会话状态，避免立即再次弹出
+                    _lastShownVersion = result.LatestVersion;
+                    Debug.WriteLine($"UpdateService: User chose to be reminded later for version {result.LatestVersion}. " +
+                                  $"Will remind again after {_remindLaterInterval.TotalHours} hours");
                 }
             }
             catch (Exception ex)
@@ -615,9 +760,10 @@ namespace GameLauncher.Services
 
         private static async Task DownloadAndInstallWithProgress(string downloadUrl)
         {
+            ContentDialog? progressDialog = null;
             try
             {
-                var progressDialog = new ContentDialog
+                progressDialog = new ContentDialog
                 {
                     Title = "正在更新",
                     Content = "正在下载更新...",
@@ -632,8 +778,9 @@ namespace GameLauncher.Services
                     Maximum = 100
                 };
 
+                var statusText = new TextBlock { Text = "正在下载更新..." };
                 var stackPanel = new StackPanel();
-                stackPanel.Children.Add(new TextBlock { Text = "正在下载更新..." });
+                stackPanel.Children.Add(statusText);
                 stackPanel.Children.Add(progressBar);
 
                 progressDialog.Content = stackPanel;
@@ -645,6 +792,17 @@ namespace GameLauncher.Services
                     App.Current?.MainWindow?.DispatcherQueue.TryEnqueue(() =>
                     {
                         progressBar.Value = value;
+                        statusText.Text = $"正在下载更新... {value}%";
+                    });
+                });
+
+                // 更新状态为"正在安装"
+                var installProgress = new Progress<string>(message =>
+                {
+                    App.Current?.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        statusText.Text = message;
+                        progressBar.IsIndeterminate = true;
                     });
                 });
 
@@ -666,20 +824,141 @@ namespace GameLauncher.Services
                 }
                 else
                 {
+                    // 构建更详细的错误信息
+                    var errorContent = new StackPanel { Spacing = 12 };
+                    
+                    errorContent.Children.Add(new TextBlock 
+                    { 
+                        Text = "更新安装失败，可能的原因包括：",
+                        Style = (Style)App.Current.Resources["BodyTextBlockStyle"]
+                    });
+
+                    var reasonsList = new StackPanel { Spacing = 4, Margin = new Thickness(16, 0, 0, 0) };
+                    
+                    reasonsList.Children.Add(new TextBlock 
+                    { 
+                        Text = "? 应用程序正在运行中（请关闭所有实例后重试）",
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
+                    });
+                    
+                    reasonsList.Children.Add(new TextBlock 
+                    { 
+                        Text = "? 网络连接中断导致下载不完整",
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
+                    });
+                    
+                    reasonsList.Children.Add(new TextBlock 
+                    { 
+                        Text = "? 系统权限不足",
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
+                    });
+                    
+                    reasonsList.Children.Add(new TextBlock 
+                    { 
+                        Text = "? 磁盘空间不足",
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
+                    });
+
+                    errorContent.Children.Add(reasonsList);
+
+                    errorContent.Children.Add(new TextBlock 
+                    { 
+                        Text = "建议解决方案：",
+                        Style = (Style)App.Current.Resources["BodyStrongTextBlockStyle"],
+                        Margin = new Thickness(0, 8, 0, 0)
+                    });
+
+                    var solutionsList = new StackPanel { Spacing = 4, Margin = new Thickness(16, 0, 0, 0) };
+                    
+                    solutionsList.Children.Add(new TextBlock 
+                    { 
+                        Text = "1. 完全关闭应用程序后重新尝试更新",
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
+                    });
+                    
+                    solutionsList.Children.Add(new TextBlock 
+                    { 
+                        Text = "2. 检查网络连接状态",
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
+                    });
+                    
+                    solutionsList.Children.Add(new TextBlock 
+                    { 
+                        Text = "3. 以管理员身份运行应用程序",
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
+                    });
+                    
+                    solutionsList.Children.Add(new TextBlock 
+                    { 
+                        Text = "4. 手动从 GitHub 下载并安装最新版本",
+                        Style = (Style)App.Current.Resources["CaptionTextBlockStyle"]
+                    });
+
+                    errorContent.Children.Add(solutionsList);
+
                     var errorDialog = new ContentDialog
                     {
                         Title = "更新失败",
-                        Content = "更新安装失败，请稍后重试或手动下载安装。",
+                        Content = errorContent,
+                        PrimaryButtonText = "重试",
+                        SecondaryButtonText = "手动下载",
+                        CloseButtonText = "取消",
+                        XamlRoot = App.Current?.MainWindow?.Content?.XamlRoot
+                    };
+
+                    var result = await errorDialog.ShowAsync();
+                    
+                    if (result == ContentDialogResult.Primary)
+                    {
+                        // 用户选择重试
+                        await DownloadAndInstallWithProgress(downloadUrl);
+                    }
+                    else if (result == ContentDialogResult.Secondary)
+                    {
+                        // 用户选择手动下载，打开 GitHub 发布页面
+                        try
+                        {
+                            var process = new Process
+                            {
+                                StartInfo = new ProcessStartInfo
+                                {
+                                    FileName = "https://github.com/lithegreat/GameLauncher/releases/latest",
+                                    UseShellExecute = true
+                                }
+                            };
+                            process.Start();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"UpdateService: Failed to open browser: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"UpdateService: Error in download and install with progress: {ex.Message}");
+                
+                // 确保关闭进度对话框
+                progressDialog?.Hide();
+                
+                // 显示通用错误对话框
+                try
+                {
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "更新失败",
+                        Content = $"更新过程中发生错误：{ex.Message}\n\n请稍后重试或手动下载安装。",
                         CloseButtonText = "确定",
                         XamlRoot = App.Current?.MainWindow?.Content?.XamlRoot
                     };
 
                     await errorDialog.ShowAsync();
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"UpdateService: Error in download and install with progress: {ex.Message}");
+                catch (Exception dialogEx)
+                {
+                    Debug.WriteLine($"UpdateService: Failed to show error dialog: {dialogEx.Message}");
+                }
             }
         }
 
