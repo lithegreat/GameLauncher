@@ -150,7 +150,7 @@ namespace GameLauncher.Services
             if (string.IsNullOrEmpty(categoryId))
                 return false;
 
-            // 不能删除默认分类
+            // 禁止删除默认分类
             if (categoryId == "all" || categoryId == "uncategorized")
                 return false;
 
@@ -159,11 +159,20 @@ namespace GameLauncher.Services
             {
                 _categories.Remove(category);
                 await SaveCategoriesAsync();
+                
+                // 触发分类删除事件，让其他组件知道需要更新游戏数据
+                CategoryDeleted?.Invoke(categoryId);
+                
                 return true;
             }
 
             return false;
         }
+
+        /// <summary>
+        /// 分类删除事件，用于通知其他组件更新游戏数据
+        /// </summary>
+        public event Action<string>? CategoryDeleted;
 
         /// <summary>
         /// 更新分类
@@ -211,18 +220,45 @@ namespace GameLauncher.Services
         {
             return new[]
             {
+                // 第一行 - 经典色彩
                 new ColorInfo("#2196F3", "蓝色", "经典蓝"),
                 new ColorInfo("#4CAF50", "绿色", "生机绿"),
                 new ColorInfo("#FF9800", "橙色", "活力橙"),
                 new ColorInfo("#9C27B0", "紫色", "优雅紫"),
                 new ColorInfo("#F44336", "红色", "热情红"),
                 new ColorInfo("#00BCD4", "青色", "清新青"),
+                
+                // 第二行 - 明亮色彩
                 new ColorInfo("#FFEB3B", "黄色", "明亮黄"),
-                new ColorInfo("#795548", "棕色", "自然棕"),
-                new ColorInfo("#607D8B", "灰蓝", "沉稳灰"),
                 new ColorInfo("#E91E63", "粉色", "浪漫粉"),
                 new ColorInfo("#3F51B5", "靛蓝", "深邃靛"),
-                new ColorInfo("#8BC34A", "浅绿", "清新浅绿")
+                new ColorInfo("#8BC34A", "浅绿", "清新浅绿"),
+                new ColorInfo("#FF5722", "深橙", "温暖橙"),
+                new ColorInfo("#673AB7", "深紫", "神秘紫"),
+                
+                // 第三行 - 柔和色彩
+                new ColorInfo("#795548", "棕色", "自然棕"),
+                new ColorInfo("#607D8B", "灰蓝", "沉稳灰"),
+                new ColorInfo("#FFC107", "琥珀", "温暖琥珀"),
+                new ColorInfo("#009688", "蓝绿", "清新蓝绿"),
+                new ColorInfo("#CDDC39", "青柠", "活力青柠"),
+                new ColorInfo("#FF6F00", "深黄", "阳光黄"),
+                
+                // 第四行 - 深色系
+                new ColorInfo("#37474F", "深灰", "商务灰"),
+                new ColorInfo("#1565C0", "深蓝", "专业蓝"),
+                new ColorInfo("#2E7D32", "深绿", "森林绿"),
+                new ColorInfo("#C62828", "深红", "酒红色"),
+                new ColorInfo("#6A1B9A", "深紫", "皇室紫"),
+                new ColorInfo("#EF6C00", "深橙", "夕阳橙"),
+                
+                // 第五行 - 粉嫩色系
+                new ColorInfo("#E1BEE7", "淡紫", "梦幻紫"),
+                new ColorInfo("#FFCDD2", "淡粉", "温柔粉"),
+                new ColorInfo("#C8E6C9", "淡绿", "薄荷绿"),
+                new ColorInfo("#BBDEFB", "淡蓝", "天空蓝"),
+                new ColorInfo("#FFE0B2", "淡橙", "蜜桃橙"),
+                new ColorInfo("#F8BBD9", "樱花", "樱花粉")
             };
         }
 

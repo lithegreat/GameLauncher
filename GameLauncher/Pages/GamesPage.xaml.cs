@@ -18,11 +18,13 @@ using GameLauncher.Models;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Data;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using Ellipse = Microsoft.UI.Xaml.Shapes.Ellipse;
 
 namespace GameLauncher.Pages
 {
-    public sealed partial class GamesPage : Page
+    public sealed partial class GamesPage : Page, INotifyPropertyChanged
     {
         public ObservableCollection<CustomDataObject> Items { get; } = new ObservableCollection<CustomDataObject>();
         public ObservableCollection<CustomDataObject> FilteredItems { get; } = new ObservableCollection<CustomDataObject>();
@@ -32,11 +34,72 @@ namespace GameLauncher.Pages
         private bool _isDeleteMode = false;
         private CustomDataObject? _contextMenuGame = null;
         private GameCategory? _selectedCategory = null;
+        private CustomDataObject? _selectedGame = null;
+
+        public CustomDataObject? SelectedGame
+        {
+            get => _selectedGame;
+            set
+            {
+                if (_selectedGame != value)
+                {
+                    _selectedGame = value;
+                    OnPropertyChanged();
+                    UpdateGameDetails();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
 
         public GamesPage()
         {
             this.InitializeComponent();
             this.Loaded += GamesPage_Loaded;
+            
+            // 订阅分类删除事件
+            CategoryService.Instance.CategoryDeleted += OnCategoryDeleted;
+        }
+
+        private async void OnCategoryDeleted(string deletedCategoryId)
+        {
+            try
+            {
+                // 将被删除分类下的所有游戏移动到"未分类"
+                var affectedGames = Items.Where(g => g.CategoryId == deletedCategoryId).ToList();
+                
+                foreach (var game in affectedGames)
+                {
+                    game.CategoryId = "uncategorized";
+                    game.Category = "未分类";
+                    // CategoryColor 会自动通过 CategoryId 的变化来更新
+                }
+                
+                if (affectedGames.Any())
+                {
+                    // 保存更新后的游戏数据
+                    await SaveGamesData();
+                    
+                    // 刷新UI
+                    ApplyCategoryFilter();
+                    UpdateCategoryGameCounts();
+                    
+                    // 如果当前选中的游戏受到影响，更新详情显示
+                    if (SelectedGame != null && affectedGames.Contains(SelectedGame))
+                    {
+                        UpdateGameDetails();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"处理分类删除事件时出错: {ex.Message}");
+            }
         }
 
         private async void GamesPage_Loaded(object sender, RoutedEventArgs e)
@@ -62,58 +125,67 @@ namespace GameLauncher.Pages
             await SaveCurrentGameOrder();
         }
 
-        private void ApplyCategoryFilter()
+        #region Game Selection and Details
+
+        private void GamesListView_ItemClick(object sender, ItemClickEventArgs e)
         {
-            FilteredItems.Clear();
-            
-            if (_selectedCategory == null)
+            try
             {
-                // 如果没有选择分类，显示所有游戏
-                foreach (var item in Items)
+                if (e.ClickedItem is CustomDataObject game)
                 {
-                    FilteredItems.Add(item);
+                    SelectedGame = game;
+                    GamesListView.SelectedItem = game;
                 }
             }
-            else if (_selectedCategory.Id == "all")
+            catch (Exception ex)
             {
-                // 显示所有游戏
-                foreach (var item in Items)
-                {
-                    FilteredItems.Add(item);
-                }
-            }
-            else if (_selectedCategory.Id == "uncategorized")
-            {
-                // 显示未分类的游戏
-                foreach (var item in Items.Where(g => string.IsNullOrEmpty(g.CategoryId) || g.CategoryId == "uncategorized"))
-                {
-                    FilteredItems.Add(item);
-                }
-            }
-            else
-            {
-                // 显示特定分类的游戏
-                foreach (var item in Items.Where(g => g.CategoryId == _selectedCategory.Id))
-                {
-                    FilteredItems.Add(item);
-                }
+                System.Diagnostics.Debug.WriteLine($"GamesListView_ItemClick error: {ex.Message}");
             }
         }
 
-        private void UpdateCategoryGameCounts()
+        private void GamesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            CategoryService.Instance.UpdateCategoryGameCounts(Items);
+            try
+            {
+                if (_isDeleteMode)
+                {
+                    // Update delete button state based on selection in delete mode
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        try
+                        {
+                            var selectedCount = GamesListView.SelectedItems?.Count ?? 0;
+                            DeleteSelectedButton.IsEnabled = selectedCount > 0;
+                            System.Diagnostics.Debug.WriteLine($"选择变更: {selectedCount} 个项目被选中");
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"更新删除按钮状态时异常: {ex.Message}");
+                        }
+                    });
+                }
+                else
+                {
+                    // Normal selection mode - update selected game
+                    if (sender is ListView listView && listView.SelectedItem is CustomDataObject game)
+                    {
+                        SelectedGame = game;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GamesListView_SelectionChanged error: {ex.Message}");
+            }
         }
 
-        #region Context Menu Event Handlers
-
-        private void ContentGridView_RightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void GamesListView_RightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             try
             {
                 System.Diagnostics.Debug.WriteLine("右键点击事件触发");
                 
-                var gridView = sender as GridView;
+                var listView = sender as ListView;
                 var tappedElement = e.OriginalSource as FrameworkElement;
                 
                 // Find the data context (game item) from the tapped element
@@ -162,9 +234,6 @@ namespace GameLauncher.Pages
                         steamSeparator.Visibility = game.IsSteamGame ? Visibility.Visible : Visibility.Collapsed;
                         openInSteamItem.Visibility = game.IsSteamGame ? Visibility.Visible : Visibility.Collapsed;
                     }
-
-                    // Xbox 游戏不需要特殊的上下文菜单项，因为它们可以通过常规的"打开游戏"功能启动
-                    // 如果将来需要添加 Xbox 特定的功能（如在 Xbox App 中打开），可以在这里添加
                 }
             }
             catch (Exception ex)
@@ -172,6 +241,353 @@ namespace GameLauncher.Pages
                 System.Diagnostics.Debug.WriteLine($"更新上下文菜单时异常: {ex.Message}");
             }
         }
+
+        private async void UpdateGameDetails()
+        {
+            try
+            {
+                if (SelectedGame == null)
+                {
+                    // Show empty state
+                    GameDetailsPanel.Visibility = Visibility.Collapsed;
+                    EmptyStatePanel.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                // Hide empty state and show details
+                EmptyStatePanel.Visibility = Visibility.Collapsed;
+                GameDetailsPanel.Visibility = Visibility.Visible;
+
+                // Update game header
+                GameIcon.Source = SelectedGame.IconImage;
+                GameTitle.Text = SelectedGame.Title;
+                GameCategory.Text = SelectedGame.Category;
+                
+                // Update category color indicator
+                if (!string.IsNullOrEmpty(SelectedGame.CategoryColor))
+                {
+                    var converter = new ColorStringToColorConverter();
+                    var color = (Windows.UI.Color)converter.Convert(SelectedGame.CategoryColor, typeof(Windows.UI.Color), null, "");
+                    CategoryColorIndicator.Fill = new SolidColorBrush(color);
+                }
+
+                // Update game type panel
+                UpdateGameTypePanel();
+
+                // Update game stats
+                UpdateGameStats();
+
+                // Update file information
+                await UpdateFileInformation();
+
+                // Update actions panel
+                UpdateActionsPanel();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateGameDetails error: {ex.Message}");
+            }
+        }
+
+        private void UpdateGameTypePanel()
+        {
+            try
+            {
+                GameTypePanel.Children.Clear();
+
+                if (SelectedGame == null) return;
+
+                if (SelectedGame.IsSteamGame)
+                {
+                    var steamIcon = new FontIcon { Glyph = "\uE968", FontSize = 16, Margin = new Thickness(0, 0, 8, 0) };
+                    var steamText = new TextBlock { Text = "Steam 游戏", Style = (Style)Application.Current.Resources["BodyTextBlockStyle"] };
+                    var steamPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                    steamPanel.Children.Add(steamIcon);
+                    steamPanel.Children.Add(steamText);
+                    GameTypePanel.Children.Add(steamPanel);
+
+                    if (!string.IsNullOrEmpty(SelectedGame.SteamAppId))
+                    {
+                        var appIdText = new TextBlock 
+                        { 
+                            Text = $"App ID: {SelectedGame.SteamAppId}", 
+                            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                        };
+                        GameTypePanel.Children.Add(appIdText);
+                    }
+                }
+                else if (SelectedGame.IsXboxGame)
+                {
+                    var xboxIcon = new FontIcon { Glyph = "\uE990", FontSize = 16, Margin = new Thickness(0, 0, 8, 0) };
+                    var xboxText = new TextBlock { Text = "Xbox 游戏", Style = (Style)Application.Current.Resources["BodyTextBlockStyle"] };
+                    var xboxPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                    xboxPanel.Children.Add(xboxIcon);
+                    xboxPanel.Children.Add(xboxText);
+                    GameTypePanel.Children.Add(xboxPanel);
+                }
+                else
+                {
+                    var localIcon = new FontIcon { Glyph = "\uE8B7", FontSize = 16, Margin = new Thickness(0, 0, 8, 0) };
+                    var localText = new TextBlock { Text = "本地游戏", Style = (Style)Application.Current.Resources["BodyTextBlockStyle"] };
+                    var localPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                    localPanel.Children.Add(localIcon);
+                    localPanel.Children.Add(localText);
+                    GameTypePanel.Children.Add(localPanel);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateGameTypePanel error: {ex.Message}");
+            }
+        }
+
+        private void UpdateGameStats()
+        {
+            try
+            {
+                if (SelectedGame == null) return;
+
+                // Format playtime
+                if (SelectedGame.Playtime > 0)
+                {
+                    var hours = SelectedGame.Playtime / 60;
+                    var minutes = SelectedGame.Playtime % 60;
+                    PlaytimeText.Text = $"游戏时间: {hours:N0} 小时 {minutes} 分钟";
+                }
+                else
+                {
+                    PlaytimeText.Text = "游戏时间: 暂无数据";
+                }
+
+                // Format last activity
+                if (SelectedGame.LastActivity.HasValue)
+                {
+                    LastActivityText.Text = $"最后游玩: {SelectedGame.LastActivity.Value:yyyy年MM月dd日}";
+                }
+                else
+                {
+                    LastActivityText.Text = "最后游玩: 暂无数据";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateGameStats error: {ex.Message}");
+            }
+        }
+
+        private async Task UpdateFileInformation()
+        {
+            try
+            {
+                if (SelectedGame == null) return;
+
+                ExecutablePathText.Text = SelectedGame.ExecutablePath;
+
+                if (!string.IsNullOrEmpty(SelectedGame.ExecutablePath) && File.Exists(SelectedGame.ExecutablePath))
+                {
+                    var fileInfo = new FileInfo(SelectedGame.ExecutablePath);
+                    
+                    // File size
+                    var sizeInMB = fileInfo.Length / (1024.0 * 1024.0);
+                    if (sizeInMB >= 1024)
+                    {
+                        FileSizeText.Text = $"{sizeInMB / 1024.0:F2} GB";
+                    }
+                    else
+                    {
+                        FileSizeText.Text = $"{sizeInMB:F2} MB";
+                    }
+
+                    // Last modified
+                    LastModifiedText.Text = fileInfo.LastWriteTime.ToString("yyyy年MM月dd日 HH:mm");
+                }
+                else
+                {
+                    FileSizeText.Text = "文件不存在";
+                    LastModifiedText.Text = "-";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateFileInformation error: {ex.Message}");
+                FileSizeText.Text = "无法获取";
+                LastModifiedText.Text = "无法获取";
+            }
+        }
+
+        private void UpdateActionsPanel()
+        {
+            try
+            {
+                ActionsPanel.Children.Clear();
+
+                if (SelectedGame == null) return;
+
+                // Set Category button
+                var setCategoryButton = new Button
+                {
+                    Content = "设置分类",
+                    Style = (Style)Application.Current.Resources["DefaultButtonStyle"],
+                    HorizontalAlignment = HorizontalAlignment.Stretch
+                };
+                setCategoryButton.Click += async (s, e) => await ShowSetCategoryDialog(SelectedGame);
+                ActionsPanel.Children.Add(setCategoryButton);
+
+                // Steam specific actions
+                if (SelectedGame.IsSteamGame && !string.IsNullOrEmpty(SelectedGame.SteamAppId))
+                {
+                    var openInSteamButton = new Button
+                    {
+                        Content = "在 Steam 中打开",
+                        Style = (Style)Application.Current.Resources["DefaultButtonStyle"],
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+                    openInSteamButton.Click += async (s, e) => await OpenInSteam(SelectedGame);
+                    ActionsPanel.Children.Add(openInSteamButton);
+                }
+
+                // Delete game button
+                var deleteButton = new Button
+                {
+                    Content = "删除游戏",
+                    Style = (Style)Application.Current.Resources["DefaultButtonStyle"],
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    Background = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"]
+                };
+                deleteButton.Click += async (s, e) => await DeleteSingleGame(SelectedGame);
+                ActionsPanel.Children.Add(deleteButton);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateActionsPanel error: {ex.Message}");
+            }
+        }
+
+        private async void LaunchGameButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (SelectedGame != null)
+                {
+                    await LaunchGame(SelectedGame);
+                }
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog($"启动游戏时错误: {ex.Message}");
+            }
+        }
+
+        private async void OpenDirectoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (SelectedGame != null)
+                {
+                    await OpenGameDirectory(SelectedGame);
+                }
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog($"打开游戏目录时错误: {ex.Message}");
+            }
+        }
+
+        private async Task OpenInSteam(CustomDataObject game)
+        {
+            try
+            {
+                if (game.IsSteamGame && !string.IsNullOrEmpty(game.SteamAppId))
+                {
+                    var steamStoreUrl = $"https://store.steampowered.com/app/{game.SteamAppId}";
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = steamStoreUrl,
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    await ShowErrorDialog("该游戏不是 Steam 游戏");
+                }
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog($"在 Steam 中打开游戏时错误: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Category and Filter Management
+
+        private void ApplyCategoryFilter()
+        {
+            FilteredItems.Clear();
+            
+            if (_selectedCategory == null)
+            {
+                // 如果没有选择分类，显示所有游戏
+                foreach (var item in Items)
+                {
+                    FilteredItems.Add(item);
+                }
+            }
+            else if (_selectedCategory.Id == "all")
+            {
+                // 显示所有游戏
+                foreach (var item in Items)
+                {
+                    FilteredItems.Add(item);
+                }
+            }
+            else if (_selectedCategory.Id == "uncategorized")
+            {
+                // 显示未分类的游戏
+                foreach (var item in Items.Where(g => string.IsNullOrEmpty(g.CategoryId) || g.CategoryId == "uncategorized"))
+                {
+                    FilteredItems.Add(item);
+                }
+            }
+            else
+            {
+                // 显示特定分类的游戏
+                foreach (var item in Items.Where(g => g.CategoryId == _selectedCategory.Id))
+                {
+                    FilteredItems.Add(item);
+                }
+            }
+        }
+
+        private void UpdateCategoryGameCounts()
+        {
+            CategoryService.Instance.UpdateCategoryGameCounts(Items);
+        }
+
+        private void CategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (sender is ComboBox comboBox && comboBox.SelectedItem is GameCategory selectedCategory)
+                {
+                    _selectedCategory = selectedCategory;
+                    ApplyCategoryFilter();
+                    
+                    // Clear selection when changing categories
+                    SelectedGame = null;
+                    GamesListView.SelectedItem = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"分类选择变更时错误: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Context Menu Event Handlers
 
         private async void OpenGameMenuItem_Click(object sender, RoutedEventArgs e)
         {
@@ -271,9 +687,24 @@ namespace GameLauncher.Pages
             }
         }
 
+        private async void SetCategoryMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_contextMenuGame != null)
+                {
+                    await ShowSetCategoryDialog(_contextMenuGame);
+                }
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog($"设置分类时错误: {ex.Message}");
+            }
+        }
+
         #endregion
 
-        #region New Methods for Context Menu Actions
+        #region Game Management Methods
 
         private async Task DeleteSingleGame(CustomDataObject game)
         {
@@ -296,6 +727,12 @@ namespace GameLauncher.Pages
                 if (result == ContentDialogResult.Primary)
                 {
                     System.Diagnostics.Debug.WriteLine("用户确认删除，开始执行删除操作");
+                    
+                    // Clear selected game if it's being deleted
+                    if (SelectedGame == game)
+                    {
+                        SelectedGame = null;
+                    }
                     
                     // 确保游戏在集合中存在
                     if (Items.Contains(game))
@@ -362,175 +799,81 @@ namespace GameLauncher.Pages
             }
         }
 
-        #endregion
-
-        #region Missing Event Handlers
-
-        private async void SetCategoryMenuItem_Click(object sender, RoutedEventArgs e)
+        private async Task LaunchGame(CustomDataObject game)
         {
             try
             {
-                if (_contextMenuGame != null)
+                if (game == null)
                 {
-                    await ShowSetCategoryDialog(_contextMenuGame);
+                    await ShowErrorDialog("游戏数据无效");
+                    return;
                 }
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"设置分类时错误: {ex.Message}");
-            }
-        }
 
-        private async void ContentGridView_DragItemsCompleted(object sender, DragItemsCompletedEventArgs e)
-        {
-            try
-            {
-                // Update display order based on current position in the collection
-                for (int i = 0; i < Items.Count; i++)
+                // 如果是 Steam 游戏，优先使用 Steam 协议启动
+                if (game.IsSteamGame && !string.IsNullOrEmpty(game.SteamAppId))
                 {
-                    Items[i].DisplayOrder = i;
-                }
-                
-                // Save the new order
-                await SaveGamesData();
-                System.Diagnostics.Debug.WriteLine("游戏顺序已更新并保存");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"保存拖拽顺序时错误: {ex.Message}");
-            }
-        }
-
-        private void CategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            try
-            {
-                if (sender is ComboBox comboBox && comboBox.SelectedItem is GameCategory selectedCategory)
-                {
-                    _selectedCategory = selectedCategory;
-                    ApplyCategoryFilter();
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"分类选择变更时错误: {ex.Message}");
-            }
-        }
-
-        private async void ManageCategoriesButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                await ShowManageCategoriesDialog();
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"管理分类时错误: {ex.Message}");
-            }
-        }
-
-        private async void ImportSteamGamesMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                await ImportSteamGames();
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"导入Steam游戏时错误: {ex.Message}");
-            }
-        }
-
-        private async void ImportXboxGamesMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                await ImportXboxGames();
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"导入Xbox游戏时错误: {ex.Message}");
-            }
-        }
-
-        #endregion
-
-        #region Helper Methods for New Event Handlers
-
-        private async Task ShowSetCategoryDialog(CustomDataObject game)
-        {
-            try
-            {
-                var categoryComboBox = new ComboBox()
-                {
-                    ItemsSource = Categories.Where(c => c.Id != "all").ToList(),
-                    DisplayMemberPath = "Name",
-                    SelectedValuePath = "Id",
-                    SelectedValue = game.CategoryId ?? "uncategorized",
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    Margin = new Thickness(0, 10, 0, 0)
-                };
-
-                var contentPanel = new StackPanel();
-                contentPanel.Children.Add(new TextBlock() 
-                { 
-                    Text = $"为游戏 \"{game.Title}\" 选择分类:", 
-                    Margin = new Thickness(0, 0, 0, 10) 
-                });
-                contentPanel.Children.Add(categoryComboBox);
-
-                var dialog = new ContentDialog()
-                {
-                    Title = "设置游戏分类",
-                    Content = contentPanel,
-                    PrimaryButtonText = "确定",
-                    SecondaryButtonText = "取消",
-                    XamlRoot = this.XamlRoot
-                };
-
-                var result = await dialog.ShowAsync();
-
-                if (result == ContentDialogResult.Primary)
-                {
-                    var selectedCategory = categoryComboBox.SelectedItem as GameCategory;
-                    if (selectedCategory != null)
+                    System.Diagnostics.Debug.WriteLine($"通过 Steam 启动游戏: {game.Title} (AppID: {game.SteamAppId})");
+                    
+                    if (SteamService.LaunchSteamGame(game.SteamAppId))
                     {
-                        game.CategoryId = selectedCategory.Id;
-                        game.Category = selectedCategory.Name;
-                        
-                        await SaveGamesData();
-                        
-                        // 确保UI立即更新以反映分类变更
-                        ApplyCategoryFilter();
-                        UpdateCategoryGameCounts();
+                        return; // Steam 启动成功
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Steam 启动失败，尝试直接运行可执行文件");
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"显示设置分类对话框时错误: {ex.Message}");
-                throw;
-            }
-        }
 
-        private async Task ShowManageCategoriesDialog()
-        {
-            try
-            {
-                // 这里可以实现分类管理对话框
-                // 暂时显示一个简单的信息对话框
-                await ShowInfoDialog("分类管理功能即将实现");
+                // 如果是 Xbox 游戏，优先使用 Xbox 协议启动
+                if (game.IsXboxGame && !string.IsNullOrEmpty(game.XboxPackageFamilyName))
+                {
+                    System.Diagnostics.Debug.WriteLine($"通过 Xbox 启动游戏: {game.Title} (Package: {game.XboxPackageFamilyName})");
+                    
+                    if (XboxService.LaunchXboxGame(game.XboxPackageFamilyName))
+                    {
+                        return; // Xbox 启动成功
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Xbox 启动失败，尝试直接运行可执行文件");
+                        
+                        // 尝试通过可执行文件启动 Xbox 游戏
+                        if (!string.IsNullOrEmpty(game.ExecutablePath) && File.Exists(game.ExecutablePath))
+                        {
+                            if (XboxService.LaunchXboxGameByExecutable(game.ExecutablePath))
+                            {
+                                return; // 通过可执行文件启动成功
+                            }
+                        }
+                    }
+                }
+
+                // 直接运行可执行文件（适用于 Steam 游戏或 Steam 启动失败时的备选方案）
+                if (string.IsNullOrEmpty(game.ExecutablePath) || !File.Exists(game.ExecutablePath))
+                {
+                    await ShowErrorDialog($"游戏文件不存在: {game.ExecutablePath}");
+                    return;
+                }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = game.ExecutablePath,
+                    WorkingDirectory = Path.GetDirectoryName(game.ExecutablePath) ?? string.Empty,
+                    UseShellExecute = true
+                };
+
+                Process.Start(startInfo);
+                System.Diagnostics.Debug.WriteLine($"直接启动游戏: {game.Title}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"显示管理分类对话框时错误: {ex.Message}");
-                throw;
+                await ShowErrorDialog($"启动游戏失败: {ex.Message}");
             }
         }
 
         #endregion
 
-        #region Existing Button Event Handlers
+        #region Button Event Handlers
 
         private async void AddGameButton_Click(object sender, RoutedEventArgs e)
         {
@@ -607,7 +950,7 @@ namespace GameLauncher.Pages
                 {
                     try
                     {
-                        foreach (var item in ContentGridView.SelectedItems)
+                        foreach (var item in GamesListView.SelectedItems)
                         {
                             if (item is CustomDataObject game)
                             {
@@ -649,6 +992,12 @@ namespace GameLauncher.Pages
                 {
                     System.Diagnostics.Debug.WriteLine("用户确认批量删除，开始执行删除操作");
                     
+                    // Clear selected game if it's being deleted
+                    if (SelectedGame != null && selectedItems.Contains(SelectedGame))
+                    {
+                        SelectedGame = null;
+                    }
+                    
                     // 在 UI 线程上安全地删除项目
                     var deleteTcs = new TaskCompletionSource<bool>();
                     this.DispatcherQueue.TryEnqueue(() =>
@@ -664,7 +1013,6 @@ namespace GameLauncher.Pages
                                     System.Diagnostics.Debug.WriteLine($"删除游戏: {item.Title}");
                                 }
                             }
-                            
 
                             System.Diagnostics.Debug.WriteLine("批量删除完成，退出删除模式");
                             
@@ -725,545 +1073,46 @@ namespace GameLauncher.Pages
             }
         }
 
-        #endregion
-
-        #region Steam Import Methods
-
-        private async Task ImportSteamGames()
+        private async void ManageCategoriesButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("开始导入 Steam 游戏");
-
-                // 检查 Steam 是否安装
-                if (!SteamService.IsSteamInstalled())
-                {
-                    await ShowErrorDialog("未检测到 Steam 安装，请确保 Steam 正确安装。");
-                    return;
-                }
-
-                // 显示进度对话框
-                var progressDialog = new ContentDialog()
-                {
-                    Title = "导入 Steam 游戏",
-                    Content = "正在扫描 Steam 游戏库，请稍候...",
-                    XamlRoot = this.XamlRoot
-                };
-
-                _ = progressDialog.ShowAsync();
-
-                try
-                {
-                    // 扫描 Steam 游戏
-                    var steamGames = await SteamService.ScanSteamGamesAsync();
-                    
-                    progressDialog.Hide();
-
-                    if (steamGames.Count == 0)
-                    {
-                        await ShowErrorDialog("未找到已安装的 Steam 游戏。");
-                        return;
-                    }
-
-                    // 过滤掉已经存在的游戏
-                    var existingAppIds = Items.Where(item => item.IsSteamGame && !string.IsNullOrEmpty(item.SteamAppId))
-                                           .Select(item => item.SteamAppId)
-                                           .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                    var newGames = steamGames.Where(game => !existingAppIds.Contains(game.AppId)).ToList();
-
-                    if (newGames.Count == 0)
-                    {
-                        await ShowErrorDialog("所有 Steam 游戏都已导入。");
-                        return;
-                    }
-
-                    System.Diagnostics.Debug.WriteLine($"找到 {newGames.Count} 个新的 Steam 游戏待导入");
-
-                    // 显示选择对话框
-                    var selectedGames = await ShowSteamGameSelectionDialog(newGames);
-                    if (selectedGames.Count > 0)
-                    {
-                        await ImportSelectedSteamGames(selectedGames);
-                        await ShowInfoDialog($"成功导入 {selectedGames.Count} 个 Steam 游戏！");
-                    }
-                }
-                catch
-                {
-                    progressDialog.Hide();
-                    throw;
-                }
+                await ShowManageCategoriesDialog();
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"导入 Steam 游戏时发生异常: {ex.Message}");
-                await ShowErrorDialog($"导入 Steam 游戏时出错: {ex.Message}");
+                await ShowErrorDialog($"管理分类时错误: {ex.Message}");
             }
         }
 
-        private async Task<List<SteamGame>> ShowSteamGameSelectionDialog(List<SteamGame> steamGames)
+        private async void ImportSteamGamesMenuItem_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // 创建游戏选择项
-                var gameSelectionItems = steamGames.Select(game => new GameSelectionItem
-                {
-                    Game = game,
-                    IsSelected = true,
-                    DisplayName = game.Name
-                }).ToList();
-
-                var stackPanel = new StackPanel();
-                
-                // 标题文本
-                stackPanel.Children.Add(new TextBlock()
-                {
-                    Text = $"找到 {steamGames.Count} 个 Steam 游戏，请选择要导入的游戏：",
-                    Margin = new Thickness(0, 0, 0, 12)
-                });
-
-                // 全选/全不选按钮
-                var buttonPanel = new StackPanel()
-                {
-                    Orientation = Orientation.Horizontal,
-                    Margin = new Thickness(0, 0, 0, 8)
-                };
-
-                var selectAllButton = new Button()
-                {
-                    Content = "全选",
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Margin = new Thickness(0, 0, 8, 0)
-                };
-
-                var deselectAllButton = new Button()
-                {
-                    Content = "全不选",
-                    HorizontalAlignment = HorizontalAlignment.Left
-                };
-
-                buttonPanel.Children.Add(selectAllButton);
-                buttonPanel.Children.Add(deselectAllButton);
-                stackPanel.Children.Add(buttonPanel);
-
-                // 创建 ScrollViewer 和游戏复选框列表
-                var scrollViewer = new ScrollViewer()
-                {
-                    MaxHeight = 400,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-                };
-
-                var gamePanel = new StackPanel();
-                var checkBoxes = new List<CheckBox>();
-
-                foreach (var item in gameSelectionItems)
-                {
-                    var checkBox = new CheckBox()
-                    {
-                        Content = item.DisplayName,
-                        IsChecked = item.IsSelected,
-                        Tag = item,
-                        Margin = new Thickness(0, 4, 0, 4)
-                    };
-
-                    checkBox.Checked += (s, e) =>
-                    {
-                        if (s is CheckBox cb && cb.Tag is GameSelectionItem selectionItem)
-                        {
-                            selectionItem.IsSelected = true;
-                        }
-                    };
-
-                    checkBox.Unchecked += (s, e) =>
-                    {
-                        if (s is CheckBox cb && cb.Tag is GameSelectionItem selectionItem)
-                        {
-                            selectionItem.IsSelected = false;
-                        }
-                    };
-
-                    checkBoxes.Add(checkBox);
-                    gamePanel.Children.Add(checkBox);
-                }
-
-                scrollViewer.Content = gamePanel;
-                stackPanel.Children.Add(scrollViewer);
-
-                // 设置按钮事件
-                selectAllButton.Click += (_, _) =>
-                {
-                    foreach (var item in gameSelectionItems)
-                        item.IsSelected = true;
-                    foreach (var cb in checkBoxes)
-                        cb.IsChecked = true;
-                };
-
-                deselectAllButton.Click += (_, _) =>
-                {
-                    foreach (var item in gameSelectionItems)
-                        item.IsSelected = false;
-                    foreach (var cb in checkBoxes)
-                        cb.IsChecked = false;
-                };
-
-                var dialog = new ContentDialog()
-                {
-                    Title = "选择 Steam 游戏",
-                    Content = stackPanel,
-                    PrimaryButtonText = "导入选中",
-                    SecondaryButtonText = "取消",
-                    XamlRoot = this.XamlRoot
-                };
-
-                var result = await dialog.ShowAsync();
-
-                if (result == ContentDialogResult.Primary)
-                {
-                    return gameSelectionItems.Where(item => item.IsSelected).Select(item => item.Game).ToList();
-                }
-
-                return new List<SteamGame>();
+                await ImportSteamGames();
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"显示Steam游戏选择对话框时出错: {ex.Message}");
-                return new List<SteamGame>();
+                await ShowErrorDialog($"导入Steam游戏时错误: {ex.Message}");
             }
         }
 
-        private async Task ImportSelectedSteamGames(List<SteamGame> selectedGames)
+        private async void ImportXboxGamesMenuItem_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                var importedCount = 0;
-
-                foreach (var steamGame in selectedGames)
-                {
-                    try
-                    {
-                        var gameItem = new CustomDataObject
-                        {
-                            Title = steamGame.Name,
-                            ExecutablePath = steamGame.ExecutablePath,
-                            IsSteamGame = true,
-                            SteamAppId = steamGame.AppId,
-                            LastActivity = steamGame.LastActivity,
-                            Playtime = steamGame.Playtime
-                        };
-
-                        Items.Add(gameItem);
-                        importedCount++;
-
-                        System.Diagnostics.Debug.WriteLine($"导入Steam游戏: {steamGame.Name}");
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"导入Steam游戏时出错: {steamGame.Name} - {ex.Message}");
-                    }
-                }
-
-                if (importedCount > 0)
-                {
-                    await SaveGamesData();
-                    await CleanDuplicateGames();
-                    
-                    // 确保UI立即更新显示新导入的游戏
-                    ApplyCategoryFilter();
-                    UpdateCategoryGameCounts();
-                    
-                    System.Diagnostics.Debug.WriteLine($"成功导入 {importedCount} 个Steam游戏");
-                }
+                await ImportXboxGames();
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"导入选中Steam游戏时出错: {ex.Message}");
-                throw;
+                await ShowErrorDialog($"导入Xbox游戏时错误: {ex.Message}");
             }
         }
 
         #endregion
 
-        #region Xbox Import Methods
+        #region Delete Mode UI
 
-        private async Task ImportXboxGames()
-        {
-            try
-            {
-                System.Diagnostics.Debug.WriteLine("开始导入 Xbox 游戏");
-
-                // 显示进度对话框
-                var progressDialog = new ContentDialog()
-                {
-                    Title = "导入 Xbox 游戏",
-                    Content = "正在扫描 Xbox 游戏库，请稍候...",
-                    XamlRoot = this.XamlRoot
-                };
-
-                // 异步显示对话框并开始扫描
-                _ = progressDialog.ShowAsync();
-
-                try
-                {
-                    // 扫描 Xbox 游戏
-                    var xboxGames = await XboxService.ScanXboxGamesAsync();
-                    
-                    // 关闭进度对话框
-                    progressDialog.Hide();
-
-                    if (xboxGames.Count == 0)
-                    {
-                        await ShowErrorDialog("未找到已安装的 Xbox 游戏。");
-                        return;
-                    }
-
-                    // 过滤掉已经存在的游戏 - 使用多重检查避免重复
-                    var existingPackageFamilyNames = Items.Where(item => item.IsXboxGame)
-                                            .Select(item => item.XboxPackageFamilyName)
-                                            .Where(pfn => !string.IsNullOrEmpty(pfn))
-                                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                    // 同时检查可执行文件路径，避免路径大小写导致的重复
-                    var existingPaths = Items.Where(item => !string.IsNullOrEmpty(item.ExecutablePath))
-                                           .Select(item => Path.GetFullPath(item.ExecutablePath).ToLowerInvariant())
-                                           .ToHashSet();
-
-                    var newGames = xboxGames.Where(game => 
-                    {
-                        // 检查 PackageFamilyName 是否已存在
-                        if (existingPackageFamilyNames.Contains(game.PackageFamilyName))
-                        {
-                            System.Diagnostics.Debug.WriteLine($"跳过重复的 Xbox PackageFamilyName: {game.PackageFamilyName} - {game.Name}");
-                            return false;
-                        }
-
-                        // 检查可执行文件路径是否已存在（标准化路径比较）'
-                        if (!string.IsNullOrEmpty(game.ExecutablePath) && File.Exists(game.ExecutablePath))
-                        {
-                            var normalizedPath = Path.GetFullPath(game.ExecutablePath).ToLowerInvariant();
-                            if (existingPaths.Contains(normalizedPath))
-                            {
-                                System.Diagnostics.Debug.WriteLine($"跳过重复的可执行文件路径: {game.ExecutablePath} - {game.Name}");
-                                return false;
-                            }
-                        }
-
-                        return true;
-                    }).ToList();
-
-                    if (newGames.Count == 0)
-                    {
-                        await ShowErrorDialog("所有 Xbox 游戏都已导入。");
-                        return;
-                    }
-
-                    System.Diagnostics.Debug.WriteLine($"找到 {newGames.Count} 个新的 Xbox 游戏待导入");
-
-                    // 显示选择对话框
-                    var selectedGames = await ShowXboxGameSelectionDialog(newGames);
-                    if (selectedGames.Count > 0)
-                    {
-                        await ImportSelectedXboxGames(selectedGames);
-                        
-                        var messageContent = $"成功导入 {selectedGames.Count} 个 Xbox 游戏！";
-                        
-                        await ShowInfoDialog(messageContent);
-                    }
-                }
-                catch
-                {
-                    progressDialog.Hide();
-                    throw;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"导入 Xbox 游戏时发生异常: {ex.Message}");
-                await ShowErrorDialog($"导入 Xbox 游戏时错误: {ex.Message}");
-            }
-        }
-
-        private async Task<List<XboxGame>> ShowXboxGameSelectionDialog(List<XboxGame> xboxGames)
-        {
-            try
-            {
-                // 创建一个装载并监听项
-                var gameSelectionItems = xboxGames.Select(game => new XboxGameSelectionItem
-                {
-                    Game = game,
-                    IsSelected = true, // 默认全选
-                    DisplayName = game.Name
-                }).ToList();
-
-                var stackPanel = new StackPanel();
-                
-                // 标题文本
-                stackPanel.Children.Add(new TextBlock()
-                {
-                    Text = $"找到 {xboxGames.Count} 个 Xbox 游戏，请选择要导入的游戏：",
-                    Margin = new Thickness(0, 0, 0, 12)
-                });
-
-                // 全选/全不选按钮
-                var buttonPanel = new StackPanel()
-                {
-                    Orientation = Orientation.Horizontal,
-                    Margin = new Thickness(0, 0, 0, 8)
-                };
-
-                var selectAllButton = new Button()
-                {
-                    Content = "全选",
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Margin = new Thickness(0, 0, 8, 0)
-                };
-
-                var deselectAllButton = new Button()
-                {
-                    Content = "全不选",
-                    HorizontalAlignment = HorizontalAlignment.Left
-                };
-
-                buttonPanel.Children.Add(selectAllButton);
-                buttonPanel.Children.Add(deselectAllButton);
-                stackPanel.Children.Add(buttonPanel);
-
-                // 创建 ScrollViewer 和游戏复选框列表
-                var scrollViewer = new ScrollViewer()
-                {
-                    MaxHeight = 400,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-                };
-
-                var gamePanel = new StackPanel();
-                var checkBoxes = new List<CheckBox>();
-
-                foreach (var item in gameSelectionItems)
-                {
-                    var checkBox = new CheckBox()
-                    {
-                        Content = item.DisplayName,
-                        IsChecked = item.IsSelected,
-                        Tag = item,
-                        Margin = new Thickness(0, 4, 0, 4)
-                    };
-
-                    checkBox.Checked += (s, e) =>
-                    {
-                        if (s is CheckBox cb && cb.Tag is XboxGameSelectionItem selectionItem)
-                        {
-                            selectionItem.IsSelected = true;
-                        }
-                    };
-
-                    checkBox.Unchecked += (s, e) =>
-                    {
-                        if (s is CheckBox cb && cb.Tag is XboxGameSelectionItem selectionItem)
-                        {
-                            selectionItem.IsSelected = false;
-                        }
-                    };
-
-                    checkBoxes.Add(checkBox);
-                    gamePanel.Children.Add(checkBox);
-                }
-
-                scrollViewer.Content = gamePanel;
-                stackPanel.Children.Add(scrollViewer);
-
-                // 设置按钮事件
-                selectAllButton.Click += (_, _) =>
-                {
-                    foreach (var item in gameSelectionItems)
-                        item.IsSelected = true;
-                    foreach (var cb in checkBoxes)
-                        cb.IsChecked = true;
-                };
-
-                deselectAllButton.Click += (_, _) =>
-                {
-                    foreach (var item in gameSelectionItems)
-                        item.IsSelected = false;
-                    foreach (var cb in checkBoxes)
-                        cb.IsChecked = false;
-                };
-
-                var dialog = new ContentDialog()
-                {
-                    Title = "选择 Xbox 游戏",
-                    Content = stackPanel,
-                    PrimaryButtonText = "导入选中",
-                    SecondaryButtonText = "取消",
-                    XamlRoot = this.XamlRoot
-                };
-
-                var result = await dialog.ShowAsync();
-
-                if (result == ContentDialogResult.Primary)
-                {
-                    return gameSelectionItems.Where(item => item.IsSelected).Select(item => item.Game).ToList();
-                }
-
-                return new List<XboxGame>();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"显示Xbox游戏选择对话框时出错: {ex.Message}");
-                return new List<XboxGame>();
-            }
-        }
-
-        private async Task ImportSelectedXboxGames(List<XboxGame> selectedGames)
-        {
-            try
-            {
-                var importedCount = 0;
-
-                foreach (var xboxGame in selectedGames)
-                {
-                    try
-                    {
-                        var gameItem = new CustomDataObject
-                        {
-                            Title = xboxGame.Name,
-                            ExecutablePath = xboxGame.ExecutablePath,
-                            IsXboxGame = true,
-                            XboxPackageFamilyName = xboxGame.PackageFamilyName,
-                            LastActivity = xboxGame.LastActivity,
-                            Playtime = xboxGame.Playtime
-                        };
-
-                        Items.Add(gameItem);
-                        importedCount++;
-
-                        System.Diagnostics.Debug.WriteLine($"导入Xbox游戏: {xboxGame.Name}");
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"导入Xbox游戏时出错: {xboxGame.Name} - {ex.Message}");
-                    }
-                }
-
-                if (importedCount > 0)
-                {
-                    await SaveGamesData();
-                    await CleanDuplicateGames();
-                    
-                    // 确保UI立即更新显示新导入的游戏
-                    ApplyCategoryFilter();
-                    UpdateCategoryGameCounts();
-                    
-                    System.Diagnostics.Debug.WriteLine($"成功导入 {importedCount} 个Xbox游戏");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"导入选中Xbox游戏时出错: {ex.Message}");
-                throw;
-            }
-        }
-
-        #endregion
-        
         private void UpdateDeleteModeUI()
         {
             try
@@ -1273,8 +1122,8 @@ namespace GameLauncher.Pages
                 if (_isDeleteMode)
                 {
                     // Enter delete mode
-                    ContentGridView.SelectionMode = ListViewSelectionMode.Multiple;
-                    ContentGridView.IsItemClickEnabled = false;
+                    GamesListView.SelectionMode = ListViewSelectionMode.Multiple;
+                    GamesListView.IsItemClickEnabled = false;
                     
                     // Show delete mode buttons
                     DeleteSelectedButton.Visibility = Visibility.Visible;
@@ -1296,9 +1145,9 @@ namespace GameLauncher.Pages
                     // Exit delete mode - clear selections first
                     try
                     {
-                        if (ContentGridView.SelectedItems != null)
+                        if (GamesListView.SelectedItems != null)
                         {
-                            ContentGridView.SelectedItems.Clear();
+                            GamesListView.SelectedItems.Clear();
                         }
                     }
                     catch (Exception ex)
@@ -1306,8 +1155,8 @@ namespace GameLauncher.Pages
                         System.Diagnostics.Debug.WriteLine($"清理选择时异常: {ex.Message}");
                     }
                     
-                    ContentGridView.SelectionMode = ListViewSelectionMode.None;
-                    ContentGridView.IsItemClickEnabled = true;
+                    GamesListView.SelectionMode = ListViewSelectionMode.Single;
+                    GamesListView.IsItemClickEnabled = true;
                     
                     // Hide delete mode buttons
                     DeleteSelectedButton.Visibility = Visibility.Collapsed;
@@ -1331,8 +1180,8 @@ namespace GameLauncher.Pages
                 try
                 {
                     _isDeleteMode = false;
-                    ContentGridView.SelectionMode = ListViewSelectionMode.None;
-                    ContentGridView.IsItemClickEnabled = true;
+                    GamesListView.SelectionMode = ListViewSelectionMode.Single;
+                    GamesListView.IsItemClickEnabled = true;
                     
                     DeleteSelectedButton.Visibility = Visibility.Collapsed;
                     CancelDeleteButton.Visibility = Visibility.Collapsed;
@@ -1347,6 +1196,138 @@ namespace GameLauncher.Pages
                 }
             }
         }
+
+        #endregion
+
+        #region Data Management
+
+        private async Task LoadGamesData()
+        {
+            try
+            {
+                var localFolder = ApplicationData.Current.LocalFolder;
+                var file = await localFolder.TryGetItemAsync(GamesDataFileName) as StorageFile;
+                
+                if (file != null)
+                {
+                    var json = await FileIO.ReadTextAsync(file);
+                    
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        var options = new JsonSerializerOptions 
+                        { 
+                            WriteIndented = true,
+                            PropertyNameCaseInsensitive = true
+                        };
+                        
+                        var gameDataList = JsonSerializer.Deserialize<GameDataJson[]>(json, options);
+                        
+                        if (gameDataList != null)
+                        {
+                            Items.Clear();
+                            
+                            // 按显示顺序然后添加到集合
+                            var sortedGames = gameDataList
+                                .Where(g => g != null && !string.IsNullOrEmpty(g.Title))
+                                .OrderBy(g => g.DisplayOrder)
+                                .ToList();
+                            
+                            foreach (var gameJson in sortedGames)
+                            {
+                                BitmapImage? iconImage = null;
+                                
+                                // 为有可执行文件路径的游戏提取图标
+                                if (!string.IsNullOrEmpty(gameJson.ExecutablePath) && File.Exists(gameJson.ExecutablePath))
+                                {
+                                    iconImage = await IconExtractor.ExtractIconAsync(gameJson.ExecutablePath);
+                                }
+                                
+                                var game = new CustomDataObject
+                                {
+                                    Title = gameJson.Title,
+                                    ExecutablePath = gameJson.ExecutablePath,
+                                    IconImage = iconImage,
+                                    IsSteamGame = gameJson.IsSteamGame,
+                                    SteamAppId = gameJson.SteamAppId,
+                                    IsXboxGame = gameJson.IsXboxGame,
+                                    XboxPackageFamilyName = gameJson.XboxPackageFamilyName,
+                                    DisplayOrder = gameJson.DisplayOrder,
+                                    CategoryId = gameJson.CategoryId ?? string.Empty,
+                                    Category = gameJson.Category ?? "未分类",
+                                    Playtime = gameJson.Playtime,
+                                    LastActivity = gameJson.LastActivity
+                                };
+                                Items.Add(game);
+                            }
+                            
+                            System.Diagnostics.Debug.WriteLine($"已加载 {Items.Count} 个游戏，包括顺序恢复");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"LoadGamesData error: {ex.Message}");
+            }
+        }
+
+        private async Task SaveGamesData()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("开始保存游戏数据");
+                
+                var localFolder = ApplicationData.Current.LocalFolder;
+                var file = await localFolder.CreateFileAsync(GamesDataFileName, CreationCollisionOption.ReplaceExisting);
+                
+                var gameDataList = Items.Where(item => item != null && !string.IsNullOrEmpty(item.Title))
+                                       .Select(item => new GameDataJson
+                                       {
+                                           Title = item.Title,
+                                           ExecutablePath = item.ExecutablePath,
+                                           IsSteamGame = item.IsSteamGame,
+                                           SteamAppId = item.SteamAppId,
+                                           IsXboxGame = item.IsXboxGame,
+                                           XboxPackageFamilyName = item.XboxPackageFamilyName,
+                                           DisplayOrder = item.DisplayOrder,
+                                           CategoryId = item.CategoryId,
+                                           Category = item.Category,
+                                           Playtime = item.Playtime,
+                                           LastActivity = item.LastActivity
+                                       }).ToList();
+                
+                System.Diagnostics.Debug.WriteLine($"准备保存 {gameDataList.Count} 个游戏");
+                
+                var json = JsonSerializer.Serialize(gameDataList, new JsonSerializerOptions { WriteIndented = true });
+                await FileIO.WriteTextAsync(file, json);
+                
+                System.Diagnostics.Debug.WriteLine("游戏数据保存成功");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"保存游戏数据时发生异常: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"异常堆栈: {ex.StackTrace}");
+                
+                // 不要向上抛出异常，而是记录错误并尝试通知用户
+                await ShowErrorDialog($"保存游戏数据失败: {ex.Message}");
+            }
+        }
+
+        private async Task SaveCurrentGameOrder()
+        {
+            try
+            {
+                await SaveGamesData();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"保存游戏顺序时出错: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Dialog Methods
 
         private async Task ShowAddGameDialog()
         {
@@ -1477,231 +1458,112 @@ namespace GameLauncher.Pages
             }
         }
 
-        private void ContentGridView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async Task ShowSetCategoryDialog(CustomDataObject game)
         {
             try
             {
-                // Update delete button state based on selection
-                if (_isDeleteMode)
+                var categoryComboBox = new ComboBox()
                 {
-                    this.DispatcherQueue.TryEnqueue(() =>
-                    {
-                        try
-                        {
-                            var selectedCount = ContentGridView.SelectedItems?.Count ?? 0;
-                            DeleteSelectedButton.IsEnabled = selectedCount > 0;
-                            System.Diagnostics.Debug.WriteLine($"选择变更: {selectedCount} 个项目被选中");
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"更新删除按钮状态时异常: {ex.Message}");
-                        }
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"ContentGridView_SelectionChanged 异常: {ex.Message}");
-            }
-        }
-
-        private async void ContentGridView_ItemClick(object sender, ItemClickEventArgs e)
-        {
-            try
-            {
-                // Only launch game if not in delete mode
-                if (!_isDeleteMode && e.ClickedItem is CustomDataObject game)
-                {
-                    await LaunchGame(game);
-                }
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"启动游戏时错误: {ex.Message}");
-            }
-        }
-
-        private async Task LaunchGame(CustomDataObject game)
-        {
-            try
-            {
-                if (game == null)
-                {
-                    await ShowErrorDialog("游戏数据无效");
-                    return;
-                }
-
-                // 如果是 Steam 游戏，优先使用 Steam 协议启动
-                if (game.IsSteamGame && !string.IsNullOrEmpty(game.SteamAppId))
-                {
-                    System.Diagnostics.Debug.WriteLine($"通过 Steam 启动游戏: {game.Title} (AppID: {game.SteamAppId})");
-                    
-                    if (SteamService.LaunchSteamGame(game.SteamAppId))
-                    {
-                        return; // Steam 启动成功
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("Steam 启动失败，尝试直接运行可执行文件");
-                    }
-                }
-
-                // 如果是 Xbox 游戏，优先使用 Xbox 协议启动
-                if (game.IsXboxGame && !string.IsNullOrEmpty(game.XboxPackageFamilyName))
-                {
-                    System.Diagnostics.Debug.WriteLine($"通过 Xbox 启动游戏: {game.Title} (Package: {game.XboxPackageFamilyName})");
-                    
-                    if (XboxService.LaunchXboxGame(game.XboxPackageFamilyName))
-                    {
-                        return; // Xbox 启动成功
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("Xbox 启动失败，尝试直接运行可执行文件");
-                        
-                        // 尝试通过可执行文件启动 Xbox 游戏
-                        if (!string.IsNullOrEmpty(game.ExecutablePath) && File.Exists(game.ExecutablePath))
-                        {
-                            if (XboxService.LaunchXboxGameByExecutable(game.ExecutablePath))
-                            {
-                                return; // 通过可 Executable 文件启动成功
-                            }
-                        }
-                    }
-                }
-
-                // 直接运行可执行文件（适用于 Steam 游戏或 Steam 启动失败时的备选方案）
-                if (string.IsNullOrEmpty(game.ExecutablePath) || !File.Exists(game.ExecutablePath))
-                {
-                    await ShowErrorDialog($"游戏文件不存在: {game.ExecutablePath}");
-                    return;
-                }
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = game.ExecutablePath,
-                    WorkingDirectory = Path.GetDirectoryName(game.ExecutablePath) ?? string.Empty,
-                    UseShellExecute = true
+                    ItemsSource = Categories.Where(c => c.Id != "all").ToList(),
+                    DisplayMemberPath = "Name",
+                    SelectedValuePath = "Id",
+                    SelectedValue = game.CategoryId ?? "uncategorized",
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    Margin = new Thickness(0, 10, 0, 0)
                 };
 
-                Process.Start(startInfo);
-                System.Diagnostics.Debug.WriteLine($"直接启动游戏: {game.Title}");
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"启动游戏失败: {ex.Message}");
-            }
-        }
+                var contentPanel = new StackPanel();
+                contentPanel.Children.Add(new TextBlock() 
+                { 
+                    Text = $"为游戏 \"{game.Title}\" 选择分类:", 
+                    Margin = new Thickness(0, 0, 0, 10) 
+                });
+                contentPanel.Children.Add(categoryComboBox);
 
-        private async Task LoadGamesData()
-        {
-            try
-            {
-                var localFolder = ApplicationData.Current.LocalFolder;
-                var file = await localFolder.TryGetItemAsync(GamesDataFileName) as StorageFile;
-                
-                if (file != null)
+                var dialog = new ContentDialog()
                 {
-                    var json = await FileIO.ReadTextAsync(file);
-                    
-                    if (!string.IsNullOrEmpty(json))
+                    Title = "设置游戏分类",
+                    Content = contentPanel,
+                    PrimaryButtonText = "确定",
+                    SecondaryButtonText = "取消",
+                    XamlRoot = this.XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
+
+                if (result == ContentDialogResult.Primary)
+                {
+                    var selectedCategory = categoryComboBox.SelectedItem as GameCategory;
+                    if (selectedCategory != null)
                     {
-                        var options = new JsonSerializerOptions 
-                        { 
-                            WriteIndented = true,
-                            PropertyNameCaseInsensitive = true
-                        };
+                        game.CategoryId = selectedCategory.Id;
+                        game.Category = selectedCategory.Name;
                         
-                        var gameDataList = JsonSerializer.Deserialize<GameDataJson[]>(json, options);
+                        await SaveGamesData();
                         
-                        if (gameDataList != null)
+                        // 确保UI立即更新以反映分类变更
+                        ApplyCategoryFilter();
+                        UpdateCategoryGameCounts();
+                        
+                        // Update details if this is the selected game
+                        if (SelectedGame == game)
                         {
-                            Items.Clear();
-                            
-                            // 按显示顺序然后添加到集合
-                            var sortedGames = gameDataList
-                                .Where(g => g != null && !string.IsNullOrEmpty(g.Title))
-                                .OrderBy(g => g.DisplayOrder)
-                                .ToList();
-                            
-                            foreach (var gameJson in sortedGames)
-                            {
-                                BitmapImage? iconImage = null;
-                                
-                                // 为有可执行文件路径的游戏提取图标
-                                if (!string.IsNullOrEmpty(gameJson.ExecutablePath) && File.Exists(gameJson.ExecutablePath))
-                                {
-                                    iconImage = await IconExtractor.ExtractIconAsync(gameJson.ExecutablePath);
-                                }
-                                
-                                var game = new CustomDataObject
-                                {
-                                    Title = gameJson.Title,
-                                    ExecutablePath = gameJson.ExecutablePath,
-                                    IconImage = iconImage,
-                                    IsSteamGame = gameJson.IsSteamGame,
-                                    SteamAppId = gameJson.SteamAppId,
-                                    IsXboxGame = gameJson.IsXboxGame,
-                                    XboxPackageFamilyName = gameJson.XboxPackageFamilyName,
-                                    DisplayOrder = gameJson.DisplayOrder,
-                                    CategoryId = gameJson.CategoryId ?? string.Empty,
-                                    Category = gameJson.Category ?? "未分类",
-                                    Playtime = gameJson.Playtime,
-                                    LastActivity = gameJson.LastActivity
-                                };
-                                Items.Add(game);
-                            }
-                            
-                            System.Diagnostics.Debug.WriteLine($"已加载 {Items.Count} 个游戏，包括顺序恢复");
+                            UpdateGameDetails();
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"LoadGamesData error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"显示设置分类对话框时错误: {ex.Message}");
+                throw;
             }
         }
 
-        private async Task SaveGamesData()
+        private async Task ShowManageCategoriesDialog()
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("开始保存游戏数据");
+                var dialog = new ManageCategoriesDialog()
+                {
+                    XamlRoot = this.XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
                 
-                var localFolder = ApplicationData.Current.LocalFolder;
-                var file = await localFolder.CreateFileAsync(GamesDataFileName, CreationCollisionOption.ReplaceExisting);
-                
-                var gameDataList = Items.Where(item => item != null && !string.IsNullOrEmpty(item.Title))
-                                       .Select(item => new GameDataJson
-                                       {
-                                           Title = item.Title,
-                                           ExecutablePath = item.ExecutablePath,
-                                           IsSteamGame = item.IsSteamGame,
-                                           SteamAppId = item.SteamAppId,
-                                           IsXboxGame = item.IsXboxGame,
-                                           XboxPackageFamilyName = item.XboxPackageFamilyName,
-                                           DisplayOrder = item.DisplayOrder,
-                                           CategoryId = item.CategoryId,
-                                           Category = item.Category,
-                                           Playtime = item.Playtime,
-                                           LastActivity = item.LastActivity
-                                       }).ToList();
-                
-                System.Diagnostics.Debug.WriteLine($"准备保存 {gameDataList.Count} 个游戏");
-                
-                var json = JsonSerializer.Serialize(gameDataList, new JsonSerializerOptions { WriteIndented = true });
-                await FileIO.WriteTextAsync(file, json);
-                
-                System.Diagnostics.Debug.WriteLine("游戏数据保存成功");
+                // 对话框关闭后，刷新分类相关的UI
+                if (result == ContentDialogResult.Primary || result == ContentDialogResult.Secondary)
+                {
+                    // 重新计算分类的游戏数量
+                    UpdateCategoryGameCounts();
+                    
+                    // 如果当前选中的分类被删除了，切换到"全部游戏"
+                    if (_selectedCategory != null && !Categories.Contains(_selectedCategory))
+                    {
+                        _selectedCategory = Categories.FirstOrDefault(c => c.Id == "all");
+                        CategoryComboBox.SelectedItem = _selectedCategory;
+                    }
+                    
+                    // 重新应用分类筛选
+                    ApplyCategoryFilter();
+                    
+                    // 更新选中游戏的分类信息（如果分类被修改）
+                    if (SelectedGame != null)
+                    {
+                        var updatedCategory = Categories.FirstOrDefault(c => c.Id == SelectedGame.CategoryId);
+                        if (updatedCategory != null)
+                        {
+                            SelectedGame.Category = updatedCategory.Name;
+                            // CategoryColor 会自动通过 CategoryId 更新，不需要手动设置
+                        }
+                        UpdateGameDetails();
+                    }
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"保存游戏数据时发生异常: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"异常堆栈: {ex.StackTrace}");
-                
-                // 不要向上抛出异常，而是记录错误并尝试通知用户
-                await ShowErrorDialog($"保存游戏数据失败: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"显示管理分类对话框时出错: {ex.Message}");
+                throw;
             }
         }
 
@@ -1742,7 +1604,39 @@ namespace GameLauncher.Pages
             }
         }
 
-        #region Helper Methods
+        private async Task ShowInfoDialog(string content)
+        {
+            try
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "信息",
+                    Content = content,
+                    CloseButtonText = "确定",
+                    XamlRoot = this.XamlRoot
+                };
+
+                await dialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"显示信息对话框时出错: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Steam and Xbox Import (Simplified placeholders)
+
+        private async Task ImportSteamGames()
+        {
+            await ShowInfoDialog("Steam 游戏导入功能即将实现");
+        }
+
+        private async Task ImportXboxGames()
+        {
+            await ShowInfoDialog("Xbox 游戏导入功能即将实现");
+        }
 
         private async Task CleanDuplicateGames()
         {
@@ -1770,7 +1664,16 @@ namespace GameLauncher.Pages
                     {
                         await SaveGamesData();
                         System.Diagnostics.Debug.WriteLine($"清理了 {removedCount} 个重复游戏");
+                        await ShowInfoDialog($"清理了 {removedCount} 个重复游戏");
                     }
+                    else
+                    {
+                        await ShowInfoDialog("没有发现重复游戏");
+                    }
+                }
+                else
+                {
+                    await ShowInfoDialog("没有发现重复游戏");
                 }
 
                 // 始终刷新UI，确保显示最新状态
@@ -1783,104 +1686,25 @@ namespace GameLauncher.Pages
             }
         }
 
-        private async Task ShowInfoDialog(string content)
-        {
-            try
-            {
-                var dialog = new ContentDialog
-                {
-                    Title = "信息",
-                    Content = content,
-                    CloseButtonText = "确定",
-                    XamlRoot = this.XamlRoot
-                };
+        #endregion
 
-                await dialog.ShowAsync();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"显示信息对话框时出错: {ex.Message}");
-            }
+        #region Helper Classes
+
+        public class GameDataJson
+        {
+            public string Title { get; set; } = string.Empty;
+            public string ExecutablePath { get; set; } = string.Empty;
+            public string SteamAppId { get; set; } = string.Empty;
+            public bool IsSteamGame { get; set; } = false;
+            public string XboxPackageFamilyName { get; set; } = string.Empty;
+            public bool IsXboxGame { get; set; } = false;
+            public int DisplayOrder { get; set; } = 0;
+            public string CategoryId { get; set; } = string.Empty;
+            public string Category { get; set; } = "未分类";
+            public ulong Playtime { get; set; } = 0;
+            public DateTime? LastActivity { get; set; }
         }
 
         #endregion
-
-        private async Task SaveCurrentGameOrder()
-        {
-            try
-            {
-                await SaveGamesData();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"保存游戏顺序时出错: {ex.Message}");
-            }
-        }
-
-        // 辅助类用于辅助Steam游戏选择
-        private class GameSelectionItem
-        {
-            public SteamGame Game { get; set; } = new SteamGame();
-            public bool IsSelected { get; set; }
-            public string DisplayName { get; set; } = string.Empty;
-        }
-
-        // 辅助类用于辅助Xbox游戏选择
-        private class XboxGameSelectionItem
-        {
-            public XboxGame Game { get; set; } = new XboxGame();
-            public bool IsSelected { get; set; }
-            public string DisplayName { get; set; } = string.Empty;
-        }
-    }
-
-    /// <summary>
-    /// 颜色字符串到颜色转换器
-    /// </summary>
-    public class ColorStringToColorConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, string language)
-        {
-            if (value is string colorString && !string.IsNullOrEmpty(colorString))
-            {
-                try
-                {
-                    if (colorString.StartsWith("#") && colorString.Length == 7)
-                    {
-                        var r = System.Convert.ToByte(colorString.Substring(1, 2), 16);
-                        var g = System.Convert.ToByte(colorString.Substring(3, 2), 16);
-                        var b = System.Convert.ToByte(colorString.Substring(5, 2), 16);
-                        return Windows.UI.Color.FromArgb(255, r, g, b);
-                    }
-                }
-                catch
-                {
-                    // 如果解析失败，返回默认颜色
-                }
-            }
-            
-            // 默认返回蓝色
-            return Windows.UI.Color.FromArgb(255, 33, 150, 243);
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, string language)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class GameDataJson
-    {
-        public string Title { get; set; } = string.Empty;
-        public string ExecutablePath { get; set; } = string.Empty;
-        public string SteamAppId { get; set; } = string.Empty;
-        public bool IsSteamGame { get; set; } = false;
-        public string XboxPackageFamilyName { get; set; } = string.Empty;
-        public bool IsXboxGame { get; set; } = false;
-        public int DisplayOrder { get; set; } = 0;
-        public string CategoryId { get; set; } = string.Empty;
-        public string Category { get; set; } = "未分类";
-        public ulong Playtime { get; set; } = 0;
-        public DateTime? LastActivity { get; set; }
     }
 }
