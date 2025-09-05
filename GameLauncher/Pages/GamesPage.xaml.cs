@@ -162,6 +162,9 @@ namespace GameLauncher.Pages
                         steamSeparator.Visibility = game.IsSteamGame ? Visibility.Visible : Visibility.Collapsed;
                         openInSteamItem.Visibility = game.IsSteamGame ? Visibility.Visible : Visibility.Collapsed;
                     }
+
+                    // Xbox 游戏不需要特殊的上下文菜单项，因为它们可以通过常规的"打开游戏"功能启动
+                    // 如果将来需要添加 Xbox 特定的功能（如在 Xbox App 中打开），可以在这里添加
                 }
             }
             catch (Exception ex)
@@ -372,18 +375,6 @@ namespace GameLauncher.Pages
             }
         }
 
-        private async void ImportSteamGamesButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                await ImportSteamGames();
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"导入 Steam 游戏时错误: {ex.Message}");
-            }
-        }
-
         private async void CleanDuplicateGamesButton_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -556,7 +547,7 @@ namespace GameLauncher.Pages
                 }
                 catch
                 {
-                    // 忽略 UI 更新异常
+                    // 忽略嵌套异常
                 }
                 
                 await ShowErrorDialog($"删除游戏时出错: {ex.Message}");
@@ -625,7 +616,7 @@ namespace GameLauncher.Pages
                             return false;
                         }
 
-                        // 检查可执行文件路径是否已存在（标准化路径比较）
+                        // 检查可执行文件路径是否已存在（标准化路径比较）'
                         if (!string.IsNullOrEmpty(game.ExecutablePath) && File.Exists(game.ExecutablePath))
                         {
                             var normalizedPath = Path.GetFullPath(game.ExecutablePath).ToLowerInvariant();
@@ -888,7 +879,12 @@ namespace GameLauncher.Pages
                     {
                         uniqueKey = $"steam_{game.SteamAppId}";
                     }
-                    // 对于非 Steam 游戏或没有 AppID 的游戏，使用标准化的可执行文件路径
+                    // 对于 Xbox 游戏，使用 Package Family Name 作为唯一标识
+                    else if (game.IsXboxGame && !string.IsNullOrEmpty(game.XboxPackageFamilyName))
+                    {
+                        uniqueKey = $"xbox_{game.XboxPackageFamilyName}";
+                    }
+                    // 对于非 Steam/Xbox 游戏，或没有 AppID/Package Name 的游戏，使用标准化的可执行文件路径
                     else if (!string.IsNullOrEmpty(game.ExecutablePath) && File.Exists(game.ExecutablePath))
                     {
                         try
@@ -900,7 +896,7 @@ namespace GameLauncher.Pages
                             uniqueKey = $"path_{game.ExecutablePath.ToLowerInvariant()}";
                         }
                     }
-                    // 使用游戏名称作为最后的唯一标识（不推荐，但作为备选） 
+                    // 使用游戏名称作为最后唯一标识（不推荐，仅作为备选） 
                     else 
                     {
                         uniqueKey = $"name_{game.Title.ToLowerInvariant()}";
@@ -969,9 +965,7 @@ namespace GameLauncher.Pages
 
                     await ShowInfoDialog($"成功清理了 {duplicates.Count} 个重复的游戏！");
                 }
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 System.Diagnostics.Debug.WriteLine($"清理重复游戏时发生异常: {ex.Message}");
                 throw;
             }
@@ -993,7 +987,15 @@ namespace GameLauncher.Pages
                 (!newGame.IsSteamGame || string.IsNullOrEmpty(newGame.SteamAppId)))
                 return false;
 
-            // 优先保留有可执行文件路径且文件存在的游戏
+            // 优先保留 Xbox 游戏（有 Package Family Name 的）
+            if (newGame.IsXboxGame && !string.IsNullOrEmpty(newGame.XboxPackageFamilyName) && 
+                (!existingGame.IsXboxGame || string.IsNullOrEmpty(existingGame.XboxPackageFamilyName)))
+                return true;
+            if (existingGame.IsXboxGame && !string.IsNullOrEmpty(existingGame.XboxPackageFamilyName) && 
+                (!newGame.IsXboxGame || string.IsNullOrEmpty(newGame.XboxPackageFamilyName)))
+                return false;
+
+            // 优先保留有有效可执行文件路径且文件存在的游戏
             bool newGameHasValidPath = !string.IsNullOrEmpty(newGame.ExecutablePath) && File.Exists(newGame.ExecutablePath);
             bool existingGameHasValidPath = !string.IsNullOrEmpty(existingGame.ExecutablePath) && File.Exists(existingGame.ExecutablePath);
 
@@ -1002,7 +1004,7 @@ namespace GameLauncher.Pages
             if (!newGameHasValidPath && existingGameHasValidPath)
                 return false;
 
-            // 默认保留现有游戏
+            // 默认保留现有的游戏
             return false;
         }
 
@@ -1027,7 +1029,7 @@ namespace GameLauncher.Pages
                     // Hide normal mode buttons
                     DeleteModeButton.Visibility = Visibility.Collapsed;
                     CleanDuplicateGamesButton.Visibility = Visibility.Collapsed;
-                    ImportSteamGamesButton.Visibility = Visibility.Collapsed;
+                    ImportGamesDropDownButton.Visibility = Visibility.Collapsed;
                     AddGameButton.Visibility = Visibility.Collapsed;
                     
                     // Initialize delete button state
@@ -1047,7 +1049,7 @@ namespace GameLauncher.Pages
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"清除选择时异常: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"清理选择时异常: {ex.Message}");
                     }
                     
                     ContentGridView.SelectionMode = ListViewSelectionMode.None;
@@ -1060,7 +1062,7 @@ namespace GameLauncher.Pages
                     // Show normal mode buttons
                     DeleteModeButton.Visibility = Visibility.Visible;
                     CleanDuplicateGamesButton.Visibility = Visibility.Visible;
-                    ImportSteamGamesButton.Visibility = Visibility.Visible;
+                    ImportGamesDropDownButton.Visibility = Visibility.Visible;
                     AddGameButton.Visibility = Visibility.Visible;
                     
                     System.Diagnostics.Debug.WriteLine("退出删除模式");
@@ -1071,7 +1073,7 @@ namespace GameLauncher.Pages
                 System.Diagnostics.Debug.WriteLine($"UpdateDeleteModeUI 异常: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"异常堆栈: {ex.StackTrace}");
                 
-                // 尝试强制重置到安全状态
+                // 错误恢复，强制重置到安全状态
                 try
                 {
                     _isDeleteMode = false;
@@ -1082,12 +1084,12 @@ namespace GameLauncher.Pages
                     CancelDeleteButton.Visibility = Visibility.Collapsed;
                     DeleteModeButton.Visibility = Visibility.Visible;
                     CleanDuplicateGamesButton.Visibility = Visibility.Visible;
-                    ImportSteamGamesButton.Visibility = Visibility.Visible;
+                    ImportGamesDropDownButton.Visibility = Visibility.Visible;
                     AddGameButton.Visibility = Visibility.Visible;
                 }
                 catch
                 {
-                    // 忽略重置异常
+                    // 忽略嵌套异常
                 }
             }
         }
@@ -1284,11 +1286,35 @@ namespace GameLauncher.Pages
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine("Steam 启动失败，尝试直接启动可执行文件");
+                        System.Diagnostics.Debug.WriteLine("Steam 启动失败，尝试直接运行可执行文件");
                     }
                 }
 
-                // 直接启动可执行文件（非 Steam 游戏或 Steam 启动失败时的备选方案）
+                // 如果是 Xbox 游戏，优先使用 Xbox 协议启动
+                if (game.IsXboxGame && !string.IsNullOrEmpty(game.XboxPackageFamilyName))
+                {
+                    System.Diagnostics.Debug.WriteLine($"通过 Xbox 启动游戏: {game.Title} (Package: {game.XboxPackageFamilyName})");
+                    
+                    if (XboxService.LaunchXboxGame(game.XboxPackageFamilyName))
+                    {
+                        return; // Xbox 启动成功
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Xbox 启动失败，尝试直接运行可执行文件");
+                        
+                        // 尝试通过可执行文件启动 Xbox 游戏
+                        if (!string.IsNullOrEmpty(game.ExecutablePath) && File.Exists(game.ExecutablePath))
+                        {
+                            if (XboxService.LaunchXboxGameByExecutable(game.ExecutablePath))
+                            {
+                                return; // 通过可执行文件启动成功
+                            }
+                        }
+                    }
+                }
+
+                // 直接运行可执行文件（适用于 Steam 游戏或 Steam 启动失败时的备选方案）
                 if (string.IsNullOrEmpty(game.ExecutablePath) || !File.Exists(game.ExecutablePath))
                 {
                     await ShowErrorDialog($"游戏文件不存在: {game.ExecutablePath}");
@@ -1359,6 +1385,8 @@ namespace GameLauncher.Pages
                                     IconImage = iconImage,
                                     IsSteamGame = gameJson.IsSteamGame,
                                     SteamAppId = gameJson.SteamAppId,
+                                    IsXboxGame = gameJson.IsXboxGame,
+                                    XboxPackageFamilyName = gameJson.XboxPackageFamilyName,
                                     DisplayOrder = gameJson.DisplayOrder,
                                     CategoryId = gameJson.CategoryId ?? string.Empty,
                                     Category = gameJson.Category ?? "未分类"
@@ -1366,7 +1394,7 @@ namespace GameLauncher.Pages
                                 Items.Add(game);
                             }
                             
-                            System.Diagnostics.Debug.WriteLine($"已加载 {Items.Count} 个游戏，按照顺序排列");
+                            System.Diagnostics.Debug.WriteLine($"已加载 {Items.Count} 个游戏，包括顺序恢复");
                         }
                     }
                 }
@@ -1393,6 +1421,8 @@ namespace GameLauncher.Pages
                                            ExecutablePath = item.ExecutablePath,
                                            IsSteamGame = item.IsSteamGame,
                                            SteamAppId = item.SteamAppId,
+                                           IsXboxGame = item.IsXboxGame,
+                                           XboxPackageFamilyName = item.XboxPackageFamilyName,
                                            DisplayOrder = item.DisplayOrder,
                                            CategoryId = item.CategoryId,
                                            Category = item.Category
@@ -1410,7 +1440,7 @@ namespace GameLauncher.Pages
                 System.Diagnostics.Debug.WriteLine($"保存游戏数据时发生异常: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"异常堆栈: {ex.StackTrace}");
                 
-                // 不要在这里抛出异常，而是记录错误并尝试通知用户
+                // 不要向上抛出异常，而是记录错误并尝试通知用户
                 await ShowErrorDialog($"保存游戏数据失败: {ex.Message}");
             }
         }
@@ -2102,6 +2132,318 @@ namespace GameLauncher.Pages
                 await ShowErrorDialog($"设置游戏分类时出错: {ex.Message}");
             }
         }
+
+        private async void ImportSteamGamesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                await ImportSteamGames();
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog($"导入 Steam 游戏时出错: {ex.Message}");
+            }
+        }
+
+        private async void ImportXboxGamesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                await ImportXboxGames();
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog($"导入 Xbox 游戏时出错: {ex.Message}");
+            }
+        }
+
+        #region Xbox Import Methods
+
+        private async Task ImportXboxGames()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("开始导入 Xbox 游戏");
+
+                // 显示进度对话框
+                var progressDialog = new ContentDialog()
+                {
+                    Title = "导入 Xbox 游戏",
+                    Content = "正在扫描 Xbox 游戏库，请稍后...",
+                    XamlRoot = this.XamlRoot
+                };
+
+                // 异步显示对话框并开始扫描
+                _ = progressDialog.ShowAsync();
+
+                try
+                {
+                    // 扫描 Xbox 游戏
+                    var xboxGames = await XboxService.ScanXboxGamesAsync();
+                    
+                    // 关闭进度对话框
+                    progressDialog.Hide();
+
+                    if (xboxGames.Count == 0)
+                    {
+                        await ShowErrorDialog("未找到已安装的 Xbox 游戏。");
+                        return;
+                    }
+
+                    // 过滤掉已经存在的游戏 - 使用多重检查避免重复
+                    var existingPackageNames = Items.Where(item => item.IsXboxGame)
+                                                  .Select(item => item.XboxPackageFamilyName)
+                                                  .Where(name => !string.IsNullOrEmpty(name))
+                                                  .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    // 同时检查可执行文件路径避免不同路径的重复
+                    var existingPaths = Items.Where(item => !string.IsNullOrEmpty(item.ExecutablePath))
+                                           .Select(item => Path.GetFullPath(item.ExecutablePath).ToLowerInvariant())
+                                           .ToHashSet();
+
+                    var newGames = xboxGames.Where(game => 
+                    {
+                        // 检查 Package Family Name 是否已存在
+                        if (existingPackageNames.Contains(game.PackageFamilyName))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"跳过重复的 Xbox Package: {game.PackageFamilyName} - {game.Name}");
+                            return false;
+                        }
+
+                        // 检查可执行文件路径是否已存在（标准化路径比较）
+                        if (!string.IsNullOrEmpty(game.ExecutablePath) && File.Exists(game.ExecutablePath))
+                        {
+                            var normalizedPath = Path.GetFullPath(game.ExecutablePath).ToLowerInvariant();
+                            if (existingPaths.Contains(normalizedPath))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"跳过重复的可执行文件路径: {game.ExecutablePath} - {game.Name}");
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    }).ToList();
+
+                    if (newGames.Count == 0)
+                    {
+                        await ShowErrorDialog("所有 Xbox 游戏都已导入。");
+                        return;
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"找到 {newGames.Count} 个新的 Xbox 游戏待导入");
+
+                    // 显示选择对话框
+                    var selectedGames = await ShowXboxGameSelectionDialog(newGames);
+                    if (selectedGames.Count > 0)
+                    {
+                        await ImportSelectedXboxGames(selectedGames);
+                        await ShowInfoDialog($"成功导入 {selectedGames.Count} 个 Xbox 游戏！");
+                    }
+                }
+                catch
+                {
+                    progressDialog.Hide();
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"导入 Xbox 游戏时发生异常: {ex.Message}");
+                await ShowErrorDialog($"导入 Xbox 游戏时错误: {ex.Message}");
+            }
+        }
+
+        private async Task<List<XboxGame>> ShowXboxGameSelectionDialog(List<XboxGame> xboxGames)
+        {
+            var selectedGames = new List<XboxGame>();
+
+            try
+            {
+                // 创建一个装配器容器包
+                var gameSelectionItems = xboxGames.Select(game => new XboxGameSelectionItem
+                {
+                    Game = game,
+                    IsSelected = true, // 默认全选
+                    DisplayName = game.Name
+                }).ToList();
+
+                // 创建游戏选择列表
+                var stackPanel = new StackPanel()
+                {
+                    Spacing = 6
+                };
+
+                foreach (var item in gameSelectionItems)
+                {
+                    var checkBox = new CheckBox()
+                    {
+                        Content = item.DisplayName,
+                        IsChecked = item.IsSelected,
+                        Tag = item,
+                        FontSize = 14,
+                        Margin = new Thickness(4, 2, 4, 2)
+                    };
+
+                    // 绑定选择状态
+                    checkBox.Checked += (s, e) => 
+                    {
+                        if (checkBox.Tag is XboxGameSelectionItem selectionItem)
+                            selectionItem.IsSelected = true;
+                    };
+                    checkBox.Unchecked += (s, e) => 
+                    {
+                        if (checkBox.Tag is XboxGameSelectionItem selectionItem)
+                            selectionItem.IsSelected = false;
+                    };
+
+                    stackPanel.Children.Add(checkBox);
+                }
+
+                var scrollViewer = new ScrollViewer()
+                {
+                    Content = stackPanel,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Height = 400,
+                    Margin = new Thickness(0, 10, 0, 10)
+                };
+
+                var contentPanel = new StackPanel();
+                contentPanel.Children.Add(new TextBlock() 
+                { 
+                    Text = $"找到 {xboxGames.Count} 个新的 Xbox 游戏，请选择要导入的游戏:",
+                    Margin = new Thickness(0, 0, 0, 10),
+                    TextWrapping = TextWrapping.Wrap
+                });
+                contentPanel.Children.Add(scrollViewer);
+
+                // 添加全选按钮
+                var buttonPanel = new StackPanel()
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    Margin = new Thickness(0, 10, 0, 0)
+                };
+
+                var selectAllButton = new Button()
+                {
+                    Content = "全选"
+                };
+
+                var deselectAllButton = new Button()
+                {
+                    Content = "全不选"
+                };
+
+                selectAllButton.Click += (s, e) =>
+                {
+                    foreach (var child in stackPanel.Children)
+                    {
+                        if (child is CheckBox checkBox)
+                        {
+                            checkBox.IsChecked = true;
+                            if (checkBox.Tag is XboxGameSelectionItem selectionItem)
+                            {
+                                selectionItem.IsSelected = true;
+                            }
+                        }
+                    }
+                };
+
+                deselectAllButton.Click += (s, e) =>
+                {
+                    foreach (var child in stackPanel.Children)
+                    {
+                        if (child is CheckBox checkBox)
+                        {
+                            checkBox.IsChecked = false;
+                            if (checkBox.Tag is XboxGameSelectionItem selectionItem)
+                            {
+                                selectionItem.IsSelected = false;
+                            }
+                        }
+                    }
+                };
+
+                buttonPanel.Children.Add(selectAllButton);
+                buttonPanel.Children.Add(deselectAllButton);
+                contentPanel.Children.Add(buttonPanel);
+
+                var dialog = new ContentDialog()
+                {
+                    Title = "选择 Xbox 游戏",
+                    Content = contentPanel,
+                    PrimaryButtonText = "导入选中的游戏",
+                    SecondaryButtonText = "取消",
+                    XamlRoot = this.XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
+
+                if (result == ContentDialogResult.Primary)
+                {
+                    selectedGames.AddRange(gameSelectionItems
+                        .Where(item => item.IsSelected)
+                        .Select(item => item.Game));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"显示 Xbox 游戏选择对话框时出错: {ex.Message}");
+            }
+
+            return selectedGames;
+        }
+
+        private async Task ImportSelectedXboxGames(List<XboxGame> xboxGames)
+        {
+            try
+            {
+                foreach (var xboxGame in xboxGames)
+                {
+                    System.Diagnostics.Debug.WriteLine($"导入 Xbox 游戏: {xboxGame.Name}");
+
+                    // 尝试提取图标
+                    BitmapImage? iconImage = null;
+                    if (!string.IsNullOrEmpty(xboxGame.ExecutablePath) && File.Exists(xboxGame.ExecutablePath))
+                    {
+                        iconImage = await IconExtractor.ExtractIconAsync(xboxGame.ExecutablePath);
+                    }
+
+                    var gameData = new CustomDataObject
+                    {
+                        Title = xboxGame.Name,
+                        ExecutablePath = xboxGame.ExecutablePath,
+                        IconImage = iconImage,
+                        IsXboxGame = true,
+                        XboxPackageFamilyName = xboxGame.PackageFamilyName,
+                        CategoryId = "uncategorized", // Xbox 游戏默认为未分类
+                        Category = "未分类"
+                    };
+
+                    Items.Add(gameData);
+                }
+
+                // 保存数据
+                await SaveGamesData();
+                ApplyCategoryFilter();
+                UpdateCategoryGameCounts();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"导入选中的 Xbox 游戏时出错: {ex.Message}");
+                throw;
+            }
+        }
+
+        // 添加辅助类用于Xbox游戏选择
+        private class XboxGameSelectionItem
+        {
+            public XboxGame Game { get; set; } = new XboxGame();
+            public bool IsSelected { get; set; }
+            public string DisplayName { get; set; } = string.Empty;
+        }
+
+        #endregion
     }
 
     /// <summary>
@@ -2145,6 +2487,8 @@ namespace GameLauncher.Pages
         public string ExecutablePath { get; set; } = string.Empty;
         public string SteamAppId { get; set; } = string.Empty;
         public bool IsSteamGame { get; set; } = false;
+        public string XboxPackageFamilyName { get; set; } = string.Empty;
+        public bool IsXboxGame { get; set; } = false;
         public int DisplayOrder { get; set; } = 0;
         public string CategoryId { get; set; } = string.Empty;
         public string Category { get; set; } = "未分类";
