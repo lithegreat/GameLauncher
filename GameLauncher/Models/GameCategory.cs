@@ -23,6 +23,8 @@ namespace GameLauncher.Models
                 {
                     _id = value ?? string.Empty;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanEdit));
+                    OnPropertyChanged(nameof(CanDelete));
                 }
             }
         }
@@ -79,6 +81,16 @@ namespace GameLauncher.Models
         /// 显示文本（包含游戏数量）
         /// </summary>
         public string DisplayText => $"{Name} ({GameCount})";
+
+        /// <summary>
+        /// 是否可以编辑（系统默认分类不可编辑）
+        /// </summary>
+        public bool CanEdit => Id != "all" && Id != "uncategorized";
+
+        /// <summary>
+        /// 是否可以删除（系统默认分类不可删除）
+        /// </summary>
+        public bool CanDelete => Id != "all" && Id != "uncategorized";
 
         public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="GameLauncher.Pages.ManageCategoriesDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:GameLauncher.Models"
+    xmlns:services="using:GameLauncher.Services"
+    Title="管理分类"
+    PrimaryButtonText="确定"
+    SecondaryButtonText="取消"
+    DefaultButton="Primary"
+    Width="640"
+    Height="560">
+
+    <ContentDialog.Resources>
+        <!-- 颜色转换器 -->
+        <services:ColorStringToColorConverter x:Key="ColorConverter"/>
+    </ContentDialog.Resources>
+
+    <Grid Margin="0,8,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题和添加按钮 -->
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="分类管理" 
+                           Style="{StaticResource SubtitleTextBlockStyle}"
+                           Margin="0,0,0,4"/>
+                <TextBlock Text="管理游戏分类，包括新建、编辑和删除操作"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+            
+            <Button Grid.Column="1" 
+                    x:Name="AddCategoryButton"
+                    Style="{StaticResource AccentButtonStyle}"
+                    Click="AddCategoryButton_Click"
+                    VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE710;" FontSize="16"/>
+                    <TextBlock Text="新建分类"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- 分类列表 -->
+        <Border Grid.Row="1" 
+                Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
+                CornerRadius="8"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1">
+            <ScrollViewer Padding="16">
+                <StackPanel x:Name="CategoriesPanel" Spacing="8">
+                    <!-- 分类列表将在代码中动态生成 -->
+                    
+                    <!-- 空状态提示 -->
+                    <Border x:Name="EmptyStatePanel" 
+                            Visibility="Collapsed"
+                            Background="{ThemeResource LayerFillColorDefaultBrush}"
+                            CornerRadius="6"
+                            Padding="32"
+                            HorizontalAlignment="Center">
+                        <StackPanel Spacing="12" HorizontalAlignment="Center">
+                            <FontIcon Glyph="&#xE7C3;" 
+                                      FontSize="32" 
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <TextBlock Text="暂无自定义分类" 
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="点击新建分类按钮创建您的第一个分类" 
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- 说明文本 -->
+        <Border Grid.Row="2" 
+                Background="{ThemeResource SystemFillColorAttentionBackgroundBrush}"
+                CornerRadius="6"
+                Padding="12"
+                Margin="0,16,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <FontIcon Glyph="&#xE946;" 
+                          FontSize="16" 
+                          Foreground="{ThemeResource SystemFillColorAttentionBrush}"
+                          VerticalAlignment="Top"
+                          Margin="0,2,0,0"/>
+                <StackPanel>
+                    <TextBlock Text="注意事项" 
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               FontWeight="SemiBold"
+                               Foreground="{ThemeResource SystemFillColorAttentionBrush}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Text="• 删除分类时，该分类下的所有游戏将被移动到未分类"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="• 系统默认分类（全部游戏、未分类）无法删除或编辑"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</ContentDialog>

@@ -17,6 +17,8 @@ namespace GameLauncher
         private int _displayOrder = 0;
         private string _categoryId = string.Empty;
         private string _category = "未分类";
+        private ulong _playtime = 0;
+        private DateTime? _lastActivity;
 
         public string Title
         {
@@ -171,7 +173,106 @@ namespace GameLauncher
         }
 
         /// <summary>
-        /// 分类颜色（十六进制颜色字符串）
+        /// 游戏时长（分钟）
+        /// </summary>
+        public ulong Playtime
+        {
+            get => _playtime;
+            set
+            {
+                if (_playtime != value)
+                {
+                    _playtime = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PlaytimeFormatted));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 最后游玩时间
+        /// </summary>
+        public DateTime? LastActivity
+        {
+            get => _lastActivity;
+            set
+            {
+                if (_lastActivity != value)
+                {
+                    _lastActivity = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LastActivityFormatted));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 格式化的游戏时长字符串
+        /// </summary>
+        public string PlaytimeFormatted
+        {
+            get
+            {
+                if (_playtime == 0)
+                    return "未游玩";
+
+                var hours = _playtime / 60;
+                var minutes = _playtime % 60;
+
+                if (hours == 0)
+                    return $"{minutes} 分钟";
+                
+                if (minutes == 0)
+                    return $"{hours} 小时";
+                    
+                return $"{hours} 小时 {minutes} 分钟";
+            }
+        }
+
+        /// <summary>
+        /// 格式化的最后游玩时间字符串
+        /// </summary>
+        public string LastActivityFormatted
+        {
+            get
+            {
+                if (!_lastActivity.HasValue)
+                    return "未知";
+
+                var now = DateTime.Now;
+                var timeSpan = now - _lastActivity.Value;
+
+                if (timeSpan.TotalDays < 1)
+                {
+                    if (timeSpan.TotalHours < 1)
+                    {
+                        if (timeSpan.TotalMinutes < 1)
+                            return "刚刚";
+                        return $"{(int)timeSpan.TotalMinutes} 分钟前";
+                    }
+                    return $"{(int)timeSpan.TotalHours} 小时前";
+                }
+                else if (timeSpan.TotalDays < 7)
+                {
+                    return $"{(int)timeSpan.TotalDays} 天前";
+                }
+                else if (timeSpan.TotalDays < 30)
+                {
+                    return $"{(int)(timeSpan.TotalDays / 7)} 周前";
+                }
+                else if (timeSpan.TotalDays < 365)
+                {
+                    return $"{(int)(timeSpan.TotalDays / 30)} 月前";
+                }
+                else
+                {
+                    return $"{(int)(timeSpan.TotalDays / 365)} 年前";
+                }
+            }
+        }
+
+        /// <summary>
+        /// 分类颜色，十六进制颜色字符串
         /// </summary>
         public string CategoryColor
         {

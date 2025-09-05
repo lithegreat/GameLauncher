@@ -6,13 +6,14 @@
     xmlns:local="using:GameLauncher"
     xmlns:pages="using:GameLauncher.Pages"
     xmlns:models="using:GameLauncher.Models"
+    xmlns:services="using:GameLauncher.Services"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
     <Page.Resources>
         <!-- 颜色转换器 -->
-        <pages:ColorStringToColorConverter x:Key="ColorConverter"/>
+        <services:ColorStringToColorConverter x:Key="ColorConverter"/>
         
         <!-- Context Menu for Game Items -->
         <MenuFlyout x:Key="GameContextMenu">
@@ -25,130 +26,60 @@
             <MenuFlyoutItem x:Name="OpenInSteamMenuItem" Text="在Steam中打开" Icon="Shop" Click="OpenInSteamMenuItem_Click"/>
         </MenuFlyout>
 
-        <!-- ImageTextTemplate DataTemplate with Game Icon -->
-        <DataTemplate x:Key='ImageTextTemplate' x:DataType='local:CustomDataObject'>
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
-                    CornerRadius="8" 
-                    Padding="12" 
-                    Margin="8"
-                    Width="280"
-                    Height="120"
-                    ContextFlyout="{StaticResource GameContextMenu}">
-                <Border.Shadow>
-                    <ThemeShadow />
-                </Border.Shadow>
-                <Grid AutomationProperties.Name="{x:Bind Title}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    
-                    <!-- Game Icon -->
-                    <Border Grid.Column="0" 
-                            Background="{ThemeResource LayerFillColorDefaultBrush}"
-                            CornerRadius="6"
-                            Width="64"
-                            Height="64"
-                            VerticalAlignment="Top">
-                        <Image Source="{x:Bind IconImage}" 
-                               Width="48" 
-                               Height="48"
-                               Stretch="Uniform" 
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center"/>
-                    </Border>
-                    
-                    <!-- Game Info -->
-                    <StackPanel Grid.Column="1" 
-                                Margin="12,0,0,0" 
-                                VerticalAlignment="Top">
-                        <TextBlock Text="{x:Bind Title}" 
-                                   Style="{StaticResource SubtitleTextBlockStyle}" 
-                                   TextWrapping="Wrap"
-                                   MaxLines="2"
-                                   Margin="0,0,0,4"/>
-                        
-                        <!-- 分类信息带颜色指示器 -->
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <!-- 分类颜色圆点 -->
-                            <Ellipse Grid.Column="0" 
-                                     Width="8" 
-                                     Height="8" 
-                                     Margin="0,0,6,0"
-                                     VerticalAlignment="Center">
-                                <Ellipse.Fill>
-                                    <SolidColorBrush Color="{x:Bind CategoryColor, Converter={StaticResource ColorConverter}}"/>
-                                </Ellipse.Fill>
-                            </Ellipse>
-                            <!-- 分类文本 -->
-                            <TextBlock Grid.Column="1"
-                                       Text="{x:Bind Category}" 
-                                       Style="{StaticResource CaptionTextBlockStyle}" 
-                                       VerticalAlignment="Center"/>
-                        </Grid>
-                        
-                        <TextBlock Text="{x:Bind ExecutablePath}" 
-                                   Style="{StaticResource CaptionTextBlockStyle}" 
-                                   TextWrapping="Wrap"
-                                   MaxLines="2"
-                                   Opacity="0.7"
-                                   FontSize="11"/>
-                    </StackPanel>
-                </Grid>
-            </Border>
-        </DataTemplate>
-        
-        <!-- Fallback TextTemplate for items without icons -->
-        <DataTemplate x:Key='TextTemplate' x:DataType='local:CustomDataObject'>
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
-                    CornerRadius="8" 
-                    Padding="16" 
-                    Margin="8"
-                    Width="240"
-                    Height="120"
-                    ContextFlyout="{StaticResource GameContextMenu}">
-                <Border.Shadow>
-                    <ThemeShadow />
-                </Border.Shadow>
-                <StackPanel Orientation="Vertical" VerticalAlignment="Center">
-                    <TextBlock Text="{x:Bind Title}" 
-                               Style="{StaticResource SubtitleTextBlockStyle}" 
-                               TextAlignment="Center"
-                               TextWrapping="Wrap"
-                               MaxLines="2"/>
-                    <TextBlock Text="{x:Bind Category}" 
-                               Style="{StaticResource CaptionTextBlockStyle}" 
-                               TextAlignment="Center"
-                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                               Margin="0,4,0,0"/>
-                    <TextBlock Text="{x:Bind ExecutablePath}" 
-                               Style="{StaticResource CaptionTextBlockStyle}" 
-                               TextAlignment="Center"
-                               TextWrapping="Wrap"
-                               MaxLines="2"
-                               Opacity="0.7"
-                               Margin="0,8,0,0"/>
-                </StackPanel>
-            </Border>
+        <!-- Game Navigation Item Template -->
+        <DataTemplate x:Key="GameNavigationItemTemplate" x:DataType="local:CustomDataObject">
+            <Grid Margin="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- Game Icon -->
+                <Border Grid.Column="0" 
+                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                        CornerRadius="4"
+                        Width="32"
+                        Height="32"
+                        Margin="0,0,12,0">
+                    <Image Source="{x:Bind IconImage}" 
+                           Width="24" 
+                           Height="24"
+                           Stretch="Uniform"/>
+                </Border>
+                
+                <!-- Game Title -->
+                <TextBlock Grid.Column="1" 
+                           Text="{x:Bind Title}" 
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"
+                           MaxLines="1"/>
+                
+                <!-- Category Color Indicator -->
+                <Ellipse Grid.Column="2" 
+                         Width="8" 
+                         Height="8" 
+                         Margin="8,0,0,0"
+                         VerticalAlignment="Center">
+                    <Ellipse.Fill>
+                        <SolidColorBrush Color="{x:Bind CategoryColor, Converter={StaticResource ColorConverter}}"/>
+                    </Ellipse.Fill>
+                </Ellipse>
+            </Grid>
         </DataTemplate>
     </Page.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Header with title and main buttons -->
-        <Grid Grid.Row="0" Margin="24,24,24,0">
+        <Grid Grid.Row="0" Margin="24,24,24,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             
@@ -156,7 +87,7 @@
                        Style="{StaticResource TitleTextBlockStyle}" VerticalAlignment="Center"/>
             
             <!-- Button panel -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <!-- Delete Mode Toggle Button -->
                 <Button x:Name="DeleteModeButton" Content="删除游戏" 
                         Click="DeleteModeButton_Click" Style="{StaticResource DefaultButtonStyle}"/>
@@ -208,78 +139,311 @@
             </StackPanel>
         </Grid>
 
-        <!-- Category filter section -->
-        <Grid Grid.Row="1" Margin="24,16,24,8">
+        <!-- Main Content with NavigationView Style -->
+        <Grid Grid.Row="1" Margin="24,0,24,24">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="320"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="分类筛选:" 
-                       VerticalAlignment="Center" 
-                       Margin="0,0,12,0"
-                       Style="{StaticResource BodyTextBlockStyle}"/>
+            <!-- Left Panel: Games List with Category Filter -->
+            <Border Grid.Column="0" 
+                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    CornerRadius="8"
+                    Margin="0,0,12,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-            <ComboBox Grid.Column="1" x:Name="CategoryComboBox"
-                      ItemsSource="{x:Bind Categories, Mode=OneWay}"
-                      SelectedIndex="0"
-                      SelectionChanged="CategoryComboBox_SelectionChanged"
-                      HorizontalAlignment="Stretch"
-                      MinWidth="200">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="models:GameCategory">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <!-- 分类颜色圆点 -->
-                            <Ellipse Grid.Column="0" 
-                                     Width="12" 
-                                     Height="12" 
-                                     Margin="0,0,8,0"
-                                     VerticalAlignment="Center">
-                                <Ellipse.Fill>
-                                    <SolidColorBrush Color="{x:Bind Color, Converter={StaticResource ColorConverter}}"/>
-                                </Ellipse.Fill>
-                            </Ellipse>
-                            <!-- 分类名称和数量 -->
-                            <TextBlock Grid.Column="1" 
-                                       Text="{x:Bind DisplayText}" 
-                                       VerticalAlignment="Center"/>
-                        </Grid>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+                    <!-- Category Filter Section -->
+                    <StackPanel Grid.Row="0" Margin="16,16,16,8">
+                        <TextBlock Text="分类筛选" 
+                                   Style="{StaticResource SubtitleTextBlockStyle}" 
+                                   Margin="0,0,0,8"/>
+                        
+                        <ComboBox x:Name="CategoryComboBox"
+                                  ItemsSource="{x:Bind Categories, Mode=OneWay}"
+                                  SelectedIndex="0"
+                                  SelectionChanged="CategoryComboBox_SelectionChanged"
+                                  HorizontalAlignment="Stretch">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:GameCategory">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Grid.Column="0" 
+                                                 Width="12" 
+                                                 Height="12" 
+                                                 Margin="0,0,8,0"
+                                                 VerticalAlignment="Center">
+                                            <Ellipse.Fill>
+                                                <SolidColorBrush Color="{x:Bind Color, Converter={StaticResource ColorConverter}}"/>
+                                            </Ellipse.Fill>
+                                        </Ellipse>
+                                        <TextBlock Grid.Column="1" 
+                                                   Text="{x:Bind DisplayText}" 
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
 
-            <Button Grid.Column="2" x:Name="ManageCategoriesButton" 
-                    Click="ManageCategoriesButton_Click" 
-                    Style="{StaticResource DefaultButtonStyle}"
-                    Margin="12,0,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE8B7;" FontSize="16"/>
-                    <TextBlock Text="管理分类"/>
-                </StackPanel>
-            </Button>
+                        <Button x:Name="ManageCategoriesButton" 
+                                Click="ManageCategoriesButton_Click" 
+                                Style="{StaticResource DefaultButtonStyle}"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,8,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE8B7;" FontSize="16"/>
+                                <TextBlock Text="管理分类"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" 
+                            Height="1" 
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                            Margin="16,0"/>
+
+                    <!-- Games List -->
+                    <ScrollViewer Grid.Row="2" Margin="8,8,8,16">
+                        <ListView x:Name="GamesListView"
+                                  ItemsSource="{x:Bind FilteredItems, Mode=OneWay}"
+                                  SelectionMode="Single"
+                                  IsItemClickEnabled="True"
+                                  ItemClick="GamesListView_ItemClick"
+                                  SelectionChanged="GamesListView_SelectionChanged"
+                                  RightTapped="GamesListView_RightTapped">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="local:CustomDataObject">
+                                    <Border Background="Transparent"
+                                            CornerRadius="4"
+                                            Padding="8"
+                                            ContextFlyout="{StaticResource GameContextMenu}">
+                                        <ContentPresenter Content="{x:Bind}"
+                                                          ContentTemplate="{StaticResource GameNavigationItemTemplate}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="4,2"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel: Game Details -->
+            <Border Grid.Column="1" 
+                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    CornerRadius="8">
+                <ScrollViewer x:Name="GameDetailsScrollViewer" Padding="24">
+                    <Grid>
+                        <StackPanel x:Name="GameDetailsPanel" Spacing="16" Visibility="Collapsed">
+                            <!-- Game Header -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Game Icon -->
+                                <Border Grid.Column="0" 
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        CornerRadius="8"
+                                        Width="80"
+                                        Height="80"
+                                        Margin="0,0,16,0">
+                                    <Image x:Name="GameIcon" 
+                                           Width="64" 
+                                           Height="64"
+                                           Stretch="Uniform"/>
+                                </Border>
+
+                                <!-- Game Title and Category -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="GameTitle" 
+                                               Style="{StaticResource TitleTextBlockStyle}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
+                                
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Grid.Column="0" 
+                                                 x:Name="CategoryColorIndicator"
+                                                 Width="12" 
+                                                 Height="12" 
+                                                 Margin="0,0,8,0"
+                                                 VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   x:Name="GameCategory" 
+                                                   Style="{StaticResource SubtitleTextBlockStyle}"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Launch Button -->
+                                <Button Grid.Column="2" 
+                                        x:Name="LaunchGameButton"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Click="LaunchGameButton_Click"
+                                        VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE768;" FontSize="16"/>
+                                        <TextBlock Text="启动游戏"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <!-- Game Information Cards -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Game Type Info -->
+                                <Border Grid.Column="0" 
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        CornerRadius="8"
+                                        Padding="16"
+                                        Margin="0,0,8,0">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="游戏类型" 
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <StackPanel x:Name="GameTypePanel" Spacing="4">
+                                            <!-- Content will be populated in code-behind -->
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Game Stats -->
+                                <Border Grid.Column="1" 
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        CornerRadius="8"
+                                        Padding="16"
+                                        Margin="8,0,0,0">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="游戏统计" 
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <StackPanel Spacing="4">
+                                            <TextBlock x:Name="PlaytimeText" Style="{StaticResource BodyTextBlockStyle}"/>
+                                            <TextBlock x:Name="LastActivityText" Style="{StaticResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- File Information -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Text="文件信息" 
+                                               Style="{StaticResource SubtitleTextBlockStyle}"/>
+                                    
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Executable Path -->
+                                        <TextBlock Grid.Row="0" Grid.Column="0" 
+                                                   Text="可执行文件:" 
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   VerticalAlignment="Top"
+                                                   Margin="0,0,8,0"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" 
+                                                   x:Name="ExecutablePathText"
+                                                   Style="{StaticResource BodyTextBlockStyle}"
+                                                   TextWrapping="Wrap"
+                                                   IsTextSelectionEnabled="True"
+                                                   Margin="0,0,8,0"/>
+                                        <Button Grid.Row="0" Grid.Column="2"
+                                                x:Name="OpenDirectoryButton"
+                                                Content="打开目录"
+                                                Style="{StaticResource DefaultButtonStyle}"
+                                                Click="OpenDirectoryButton_Click"/>
+
+                                        <!-- File Size -->
+                                        <TextBlock Grid.Row="1" Grid.Column="0" 
+                                                   Text="文件大小:" 
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   Margin="0,8,8,0"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" 
+                                                   x:Name="FileSizeText"
+                                                   Style="{StaticResource BodyTextBlockStyle}"
+                                                   Margin="0,8,8,0"/>
+
+                                        <!-- Last Modified -->
+                                        <TextBlock Grid.Row="2" Grid.Column="0" 
+                                                   Text="修改时间:" 
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   Margin="0,8,8,0"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" 
+                                                   x:Name="LastModifiedText"
+                                                   Style="{StaticResource BodyTextBlockStyle}"
+                                                   Margin="0,8,8,0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Actions -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Text="操作" 
+                                               Style="{StaticResource SubtitleTextBlockStyle}"/>
+                                    
+                                    <StackPanel x:Name="ActionsPanel" Spacing="8">
+                                        <!-- Actions will be populated in code-behind based on game type -->
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Empty State -->
+                        <StackPanel x:Name="EmptyStatePanel" 
+                                    HorizontalAlignment="Center" 
+                                    VerticalAlignment="Center"
+                                    Spacing="16">
+                            <FontIcon Glyph="&#xE7FC;" 
+                                      FontSize="48" 
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <TextBlock Text="选择一个游戏查看详细信息" 
+                                       Style="{StaticResource SubtitleTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </Border>
         </Grid>
-
-        <!-- Games content -->
-        <ScrollViewer Grid.Row="2" Padding="24">
-            <GridView
-                x:Name="ContentGridView"
-                ItemsSource="{x:Bind FilteredItems, Mode=OneWay}"
-                ItemTemplate="{StaticResource ImageTextTemplate}"
-                IsItemClickEnabled="True"
-                CanDragItems="True"
-                AllowDrop="True"
-                CanReorderItems="True"
-                SelectionMode="None"
-                SelectionChanged="ContentGridView_SelectionChanged"
-                ItemClick="ContentGridView_ItemClick"
-                RightTapped="ContentGridView_RightTapped"
-                DragItemsCompleted="ContentGridView_DragItemsCompleted"
-                FlowDirection="LeftToRight"/>
-        </ScrollViewer>
     </Grid>
 </Page>
