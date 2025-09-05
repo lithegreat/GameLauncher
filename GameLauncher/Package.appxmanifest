@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -10,7 +10,7 @@
   <Identity
     Name="GameLauncher"
     Publisher="CN=Li"
-    Version="0.2.5.0" />
+    Version="0.3.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="fb617303-b818-4202-b873-8c6eef57e2c2" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
