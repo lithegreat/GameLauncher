@@ -2,14 +2,15 @@ English | [简体中文](./docs/README.zh-CN.md)
 
 # GameLauncher
 
-A modern Windows game launcher application built with WinUI 3 and .NET 8, featuring game management, quick launch, and Steam integration.
+A modern Windows game launcher application built with WinUI 3 and .NET 8, featuring game management, quick launch, Steam integration, Xbox Game Pass support, and automatic updates.
 
 ## 🎮 Key Features
 
 ### Game Management
 - **Add Games**: Manually add custom games to the launcher
 - **Steam Game Import**: Automatically scan and import installed Steam games
-- **Game Launch**: One-click game launching with Steam protocol and direct executable support
+- **Xbox Game Pass Integration**: Import and launch Xbox Game Pass games
+- **Game Launch**: One-click game launching with Steam protocol, Xbox app, and direct executable support
 - **Icon Extraction**: Automatically extract icons from game executables
 - **Game Directory Access**: Right-click menu for quick access to game installation directories
 
@@ -17,11 +18,24 @@ A modern Windows game launcher application built with WinUI 3 and .NET 8, featur
 - **Steam Game Discovery**: Scan all Steam library paths
 - **Steam Protocol Support**: Launch games through Steam client
 - **Steam Store Links**: Right-click menu to jump directly to Steam store pages
+- **Steam User Management**: Support for multiple Steam accounts
+
+### Xbox Integration
+- **Xbox Game Pass Support**: Import games from Xbox Game Pass
+- **Xbox App Integration**: Launch games through Xbox app
+- **UWP App Detection**: Automatically detect installed UWP applications
 
 ### Interface & Theming
 - **Modern UI**: Based on WinUI 3 Fluent Design Language
 - **Theme Switching**: Support for light, dark, and system theme following
 - **Responsive Layout**: Adapts to different screen sizes
+- **Game Categories**: Organize games into custom categories
+
+### Additional Features
+- **Automatic Updates**: Check for updates from GitHub releases
+- **Duplicate Cleanup**: Remove duplicate game entries
+- **Batch Operations**: Multi-select games for batch operations
+- **Game Statistics**: Track playtime and last activity
 
 ## 📥 Installation Instructions
 
@@ -72,7 +86,11 @@ GameLauncher/
 │   │
 │   ├── Services/                 # Service Layer
 │   │   ├── SteamService.cs       # Steam Integration Service
-│   │   └── ThemeService.cs       # Theme Management Service
+│   │   ├── XboxService.cs        # Xbox Game Pass Integration Service
+│   │   ├── CategoryService.cs    # Game Category Management Service
+│   │   ├── ThemeService.cs       # Theme Management Service
+│   │   ├── UpdateService.cs      # Automatic Update Service
+│   │   └── Programs.cs           # System Programs Detection Service
 │   │
 │   ├── CustomDataObject.cs       # Game Data Model
 │   ├── IconExtractor.cs          # Icon Extraction Tool
@@ -126,8 +144,8 @@ GameLauncher/
 
 ### First Launch
 1. Start the application
-2. The app will automatically detect Steam installation (if exists)
-3. Choose to import Steam games or manually add games
+2. The app will automatically detect Steam and Xbox Game Pass installations (if available)
+3. Choose to import Steam games, Xbox games, or manually add games
 
 ### Adding Games
 1. Click the "Add Game" button
@@ -140,14 +158,21 @@ GameLauncher/
 2. The app will scan all Steam game libraries
 3. Select the games to import
 
+### Xbox Game Import
+1. Click the "Import Xbox Games" button
+2. The app will scan for Xbox Game Pass games
+3. Select the games to import
+
 ### Game Management
 - **Launch Game**: Click on game card
-- **Right-click Menu**: Access more options (delete, open directory, Steam store, etc.)
+- **Right-click Menu**: Access more options (delete, open directory, Steam store, Xbox app, etc.)
 - **Batch Operations**: Use "Delete Games" mode for multi-selection operations
 - **Clean Duplicates**: Use "Clean Duplicates" feature to remove duplicate game entries
+- **Game Categories**: Organize games into custom categories for better management
 
 ### Settings Options
 - **Theme Switching**: Select light, dark, or system theme in settings page
+- **Automatic Updates**: Check for updates from GitHub releases
 - **Other Settings**: View app information and version
 
 ## 📄 License
