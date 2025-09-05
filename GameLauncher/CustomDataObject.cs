@@ -12,6 +12,8 @@ namespace GameLauncher
         private BitmapImage? _iconImage;
         private string _steamAppId = string.Empty;
         private bool _isSteamGame = false;
+        private string _xboxPackageFamilyName = string.Empty;
+        private bool _isXboxGame = false;
         private int _displayOrder = 0;
         private string _categoryId = string.Empty;
         private string _category = "未分类";
@@ -56,7 +58,7 @@ namespace GameLauncher
         }
 
         /// <summary>
-        /// Steam AppID (仅用于 Steam 游戏)
+        /// Steam AppID (仅适用于 Steam 游戏)
         /// </summary>
         public string SteamAppId
         {
@@ -88,7 +90,39 @@ namespace GameLauncher
         }
 
         /// <summary>
-        /// 显示顺序，用于保存用户拖拽排序结果
+        /// Xbox Package Family Name (仅适用于 Xbox 游戏)
+        /// </summary>
+        public string XboxPackageFamilyName
+        {
+            get => _xboxPackageFamilyName;
+            set
+            {
+                if (_xboxPackageFamilyName != value)
+                {
+                    _xboxPackageFamilyName = value ?? string.Empty;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 是否为 Xbox 游戏
+        /// </summary>
+        public bool IsXboxGame
+        {
+            get => _isXboxGame;
+            set
+            {
+                if (_isXboxGame != value)
+                {
+                    _isXboxGame = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 显示顺序，用于保存用户拖拽排序
         /// </summary>
         public int DisplayOrder
         {
@@ -137,7 +171,7 @@ namespace GameLauncher
         }
 
         /// <summary>
-        /// 分类颜色（十六进制颜色代码）
+        /// 分类颜色（十六进制颜色字符串）
         /// </summary>
         public string CategoryColor
         {
