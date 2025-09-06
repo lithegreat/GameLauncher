@@ -218,7 +218,12 @@
                                   IsItemClickEnabled="True"
                                   ItemClick="GamesListView_ItemClick"
                                   SelectionChanged="GamesListView_SelectionChanged"
-                                  RightTapped="GamesListView_RightTapped">
+                                  RightTapped="GamesListView_RightTapped"
+                                  CanDragItems="True"
+                                  CanReorderItems="True"
+                                  AllowDrop="True"
+                                  DragItemsStarting="GamesListView_DragItemsStarting"
+                                  DragItemsCompleted="GamesListView_DragItemsCompleted">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="local:CustomDataObject">
                                     <Border Background="Transparent"

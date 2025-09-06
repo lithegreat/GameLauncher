@@ -35,6 +35,7 @@ namespace GameLauncher.Pages
         private CustomDataObject? _contextMenuGame = null;
         private GameCategory? _selectedCategory = null;
         private CustomDataObject? _selectedGame = null;
+        private bool _isDataLoaded = false;
 
         public CustomDataObject? SelectedGame
         {
@@ -104,18 +105,90 @@ namespace GameLauncher.Pages
 
         private async void GamesPage_Loaded(object sender, RoutedEventArgs e)
         {
-            await CategoryService.Instance.LoadCategoriesAsync();
-            await LoadGamesData();
-            
-            // 默认选择"全部游戏"
-            _selectedCategory = Categories.FirstOrDefault(c => c.Id == "all");
-            ApplyCategoryFilter();
-            UpdateCategoryGameCounts();
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("GamesPage_Loaded 开始");
+                
+                // 确保分类服务已加载
+                await CategoryService.Instance.LoadCategoriesAsync();
+                
+                // 只在数据未加载时加载数据，避免覆盖已排序的数据
+                if (!_isDataLoaded)
+                {
+                    System.Diagnostics.Debug.WriteLine("首次加载，加载游戏数据");
+                    await LoadGamesData();
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("数据已加载，跳过重新加载");
+                }
+                
+                // 默认选择"全部游戏"（如果还没有选择）
+                if (_selectedCategory == null)
+                {
+                    _selectedCategory = Categories.FirstOrDefault(c => c.Id == "all");
+                }
+                
+                ApplyCategoryFilter();
+                UpdateCategoryGameCounts();
+                
+                System.Diagnostics.Debug.WriteLine("GamesPage_Loaded 完成");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GamesPage_Loaded 异常: {ex.Message}");
+            }
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            
+            // 异步执行初始化操作
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine("GamesPage OnNavigatedTo 开始");
+                    
+                    // 只在数据未加载时重新加载数据
+                    if (!_isDataLoaded)
+                    {
+                        System.Diagnostics.Debug.WriteLine("数据未加载，重新加载游戏数据");
+                        await CategoryService.Instance.LoadCategoriesAsync();
+                        await LoadGamesData();
+                        
+                        // 在UI线程上执行UI更新
+                        this.DispatcherQueue.TryEnqueue(() =>
+                        {
+                            // 默认选择"全部游戏"
+                            _selectedCategory = Categories.FirstOrDefault(c => c.Id == "all");
+                            ApplyCategoryFilter();
+                            UpdateCategoryGameCounts();
+                        });
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("数据已加载，保持当前状态");
+                        
+                        // 确保分类服务已加载（在页面导航回来时可能需要）
+                        await CategoryService.Instance.LoadCategoriesAsync();
+                        
+                        // 在UI线程上执行UI更新
+                        this.DispatcherQueue.TryEnqueue(() =>
+                        {
+                            ApplyCategoryFilter();
+                            UpdateCategoryGameCounts();
+                        });
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine("GamesPage OnNavigatedTo 完成");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"OnNavigatedTo 异常: {ex.Message}");
+                }
+            });
         }
 
         protected override async void OnNavigatedFrom(NavigationEventArgs e)
@@ -364,6 +437,7 @@ namespace GameLauncher.Pages
                 if (SelectedGame.LastActivity.HasValue)
                 {
                     LastActivityText.Text = $"最后游玩: {SelectedGame.LastActivity.Value:yyyy年MM月dd日}";
+
                 }
                 else
                 {
@@ -526,38 +600,37 @@ namespace GameLauncher.Pages
         {
             FilteredItems.Clear();
             
+            IEnumerable<CustomDataObject> gamesToShow;
+            
             if (_selectedCategory == null)
             {
                 // 如果没有选择分类，显示所有游戏
-                foreach (var item in Items)
-                {
-                    FilteredItems.Add(item);
-                }
+                gamesToShow = Items;
             }
             else if (_selectedCategory.Id == "all")
             {
                 // 显示所有游戏
-                foreach (var item in Items)
-                {
-                    FilteredItems.Add(item);
-                }
+                gamesToShow = Items;
             }
             else if (_selectedCategory.Id == "uncategorized")
             {
                 // 显示未分类的游戏
-                foreach (var item in Items.Where(g => string.IsNullOrEmpty(g.CategoryId) || g.CategoryId == "uncategorized"))
-                {
-                    FilteredItems.Add(item);
-                }
+                gamesToShow = Items.Where(g => string.IsNullOrEmpty(g.CategoryId) || g.CategoryId == "uncategorized");
             }
             else
             {
                 // 显示特定分类的游戏
-                foreach (var item in Items.Where(g => g.CategoryId == _selectedCategory.Id))
-                {
-                    FilteredItems.Add(item);
-                }
+                gamesToShow = Items.Where(g => g.CategoryId == _selectedCategory.Id);
             }
+            
+            // 按照DisplayOrder排序后添加到FilteredItems
+            var sortedGames = gamesToShow.OrderBy(g => g.DisplayOrder).ToList();
+            foreach (var game in sortedGames)
+            {
+                FilteredItems.Add(game);
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"分类筛选完成，显示 {FilteredItems.Count} 个游戏，按DisplayOrder排序");
         }
 
         private void UpdateCategoryGameCounts()
@@ -658,8 +731,7 @@ namespace GameLauncher.Pages
             {
                 if (_contextMenuGame != null && _contextMenuGame.IsSteamGame)
                 {
-                    System.Diagnostics.Debug.WriteLine($"在 Steam 中打开游戏: {_contextMenuGame.Title}");
-                    
+                    System.Diagnostics.Debug.WriteLine($"在 Steam 中打开游戏: {_contextMenuGame.Title}");                    
                     if (!string.IsNullOrEmpty(_contextMenuGame.SteamAppId))
                     {
                         // 使用 Steam 商店页面 URL
@@ -1135,7 +1207,7 @@ namespace GameLauncher.Pages
                     ImportGamesDropDownButton.Visibility = Visibility.Collapsed;
                     AddGameButton.Visibility = Visibility.Collapsed;
                     
-                    // Initialize delete button state
+                    // Initialize delete button status
                     DeleteSelectedButton.IsEnabled = false;
                     
                     System.Diagnostics.Debug.WriteLine("进入删除模式");
@@ -1199,6 +1271,113 @@ namespace GameLauncher.Pages
 
         #endregion
 
+        #region Drag and Drop Event Handlers
+
+        private void GamesListView_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"开始拖拽游戏，拖拽项数量: {e.Items.Count}");
+                
+                // 在拖拽开始时记录当前顺序，用于后续比较是否发生了变化
+                foreach (var item in FilteredItems)
+                {
+                    if (item is CustomDataObject game)
+                    {
+                        var index = FilteredItems.IndexOf(item);
+                        game.DisplayOrder = index;
+                        System.Diagnostics.Debug.WriteLine($"记录游戏 {game.Title} 的原始顺序: {index}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"拖拽开始事件异常: {ex.Message}");
+            }
+        }
+
+        private async void GamesListView_DragItemsCompleted(object sender, DragItemsCompletedEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("拖拽完成，开始更新游戏顺序");
+                
+                bool orderChanged = false;
+                
+                // 更新FilteredItems中所有游戏的DisplayOrder
+                for (int i = 0; i < FilteredItems.Count; i++)
+                {
+                    if (FilteredItems[i] is CustomDataObject game)
+                    {
+                        if (game.DisplayOrder != i)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"游戏 {game.Title} 顺序改变: {game.DisplayOrder} -> {i}");
+                            game.DisplayOrder = i;
+                            orderChanged = true;
+                        }
+                    }
+                }
+                
+                // 如果顺序发生了变化，需要同步到Items集合并保存
+                if (orderChanged)
+                {
+                    System.Diagnostics.Debug.WriteLine("游戏顺序发生变化，开始同步到主集合");
+                    
+                    // 找到FilteredItems中每个游戏在Items中的对应项并更新其DisplayOrder
+                    foreach (var filteredGame in FilteredItems)
+                    {
+                        var mainGame = Items.FirstOrDefault(g => g.Title == filteredGame.Title && g.ExecutablePath == filteredGame.ExecutablePath);
+                        if (mainGame != null)
+                        {
+                            mainGame.DisplayOrder = filteredGame.DisplayOrder;
+                        }
+                    }
+                    
+                    // 对于未显示在当前筛选中的游戏，为其分配一个更大的DisplayOrder值
+                    // 这样可以确保它们在重新显示时排在筛选过的游戏之后
+                    var maxDisplayOrder = FilteredItems.Count;
+                    foreach (var game in Items.Where(g => !FilteredItems.Contains(g)))
+                    {
+                        if (game.DisplayOrder < maxDisplayOrder)
+                        {
+                            game.DisplayOrder = maxDisplayOrder++;
+                        }
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine("开始保存游戏数据");
+                    await SaveGamesData();
+                    System.Diagnostics.Debug.WriteLine("游戏顺序保存完成");
+                    
+                    // 强制刷新UI以确保显示最新的排序
+                    System.Diagnostics.Debug.WriteLine("刷新UI显示");
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        try
+                        {
+                            ApplyCategoryFilter();
+                            System.Diagnostics.Debug.WriteLine("UI刷新完成");
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"UI刷新异常: {ex.Message}");
+                        }
+                    });
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("游戏顺序未发生变化，无需保存");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"拖拽完成事件异常: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"异常堆栈: {ex.StackTrace}");
+                await ShowErrorDialog($"保存游戏顺序时出错: {ex.Message}");
+            }
+        }
+
+        #endregion
+
         #region Data Management
 
         private async Task LoadGamesData()
@@ -1226,11 +1405,23 @@ namespace GameLauncher.Pages
                         {
                             Items.Clear();
                             
-                            // 按显示顺序然后添加到集合
+                            // 按照显示顺序然后添加到集合
                             var sortedGames = gameDataList
                                 .Where(g => g != null && !string.IsNullOrEmpty(g.Title))
-                                .OrderBy(g => g.DisplayOrder)
                                 .ToList();
+                            
+
+                            // 为没有DisplayOrder的游戏分配序号（向后兼容）
+                            for (int i = 0; i < sortedGames.Count; i++)
+                            {
+                                if (sortedGames[i].DisplayOrder == 0 && i > 0)
+                                {
+                                    sortedGames[i].DisplayOrder = i;
+                                }
+                            }
+                            
+                            // 按DisplayOrder排序
+                            sortedGames = sortedGames.OrderBy(g => g.DisplayOrder).ToList();
                             
                             foreach (var gameJson in sortedGames)
                             {
@@ -1260,14 +1451,18 @@ namespace GameLauncher.Pages
                                 Items.Add(game);
                             }
                             
+                            _isDataLoaded = true;
                             System.Diagnostics.Debug.WriteLine($"已加载 {Items.Count} 个游戏，包括顺序恢复");
                         }
                     }
                 }
+                
+                _isDataLoaded = true;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"LoadGamesData error: {ex.Message}");
+                _isDataLoaded = true; // 即使失败也设置为已加载，避免无限重试
             }
         }
 
@@ -1446,7 +1641,8 @@ namespace GameLauncher.Pages
                     ExecutablePath = pathBox.Text.Trim(),
                     IconImage = iconImage,
                     CategoryId = selectedCategory?.Id ?? "uncategorized",
-                    Category = selectedCategory?.Name ?? "未分类"
+                    Category = selectedCategory?.Name ?? "未分类",
+                    DisplayOrder = GetNextDisplayOrder()
                 };
 
                 Items.Add(gameData);
@@ -1684,6 +1880,21 @@ namespace GameLauncher.Pages
             {
                 System.Diagnostics.Debug.WriteLine($"清理重复游戏时出错: {ex.Message}");
             }
+        }
+
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// 获取下一个可用的DisplayOrder值
+        /// </summary>
+        private int GetNextDisplayOrder()
+        {
+            if (Items.Count == 0)
+                return 0;
+            
+            return Items.Max(g => g.DisplayOrder) + 1;
         }
 
         #endregion
