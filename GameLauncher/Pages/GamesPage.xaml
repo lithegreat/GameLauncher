@@ -213,9 +213,7 @@
                                   RightTapped="GamesListView_RightTapped"
                                   CanDragItems="True"
                                   CanReorderItems="True"
-                                  AllowDrop="True"
-                                  DragItemsStarting="GamesListView_DragItemsStarting"
-                                  DragItemsCompleted="GamesListView_DragItemsCompleted">
+                                  AllowDrop="True">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="local:CustomDataObject">
                                     <Border Background="Transparent"
