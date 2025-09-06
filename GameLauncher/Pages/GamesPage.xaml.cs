@@ -959,18 +959,6 @@ namespace GameLauncher.Pages
             }
         }
 
-        private async void CleanDuplicateGamesButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                await CleanDuplicateGames();
-            }
-            catch (Exception ex)
-            {
-                await ShowErrorDialog($"清理重复游戏时错误: {ex.Message}");
-            }
-        }
-
         private void DeleteModeButton_Click(object sender, RoutedEventArgs e)
         {
             _isDeleteMode = true;
@@ -1203,9 +1191,7 @@ namespace GameLauncher.Pages
                     
                     // Hide normal mode buttons
                     DeleteModeButton.Visibility = Visibility.Collapsed;
-                    CleanDuplicateGamesButton.Visibility = Visibility.Collapsed;
-                    ImportGamesDropDownButton.Visibility = Visibility.Collapsed;
-                    AddGameButton.Visibility = Visibility.Collapsed;
+                    AddGameDropDownButton.Visibility = Visibility.Collapsed;
                     
                     // Initialize delete button status
                     DeleteSelectedButton.IsEnabled = false;
@@ -1224,7 +1210,7 @@ namespace GameLauncher.Pages
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"清理选择时异常: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"清空选择时异常: {ex.Message}");
                     }
                     
                     GamesListView.SelectionMode = ListViewSelectionMode.Single;
@@ -1236,9 +1222,7 @@ namespace GameLauncher.Pages
                     
                     // Show normal mode buttons
                     DeleteModeButton.Visibility = Visibility.Visible;
-                    CleanDuplicateGamesButton.Visibility = Visibility.Visible;
-                    ImportGamesDropDownButton.Visibility = Visibility.Visible;
-                    AddGameButton.Visibility = Visibility.Visible;
+                    AddGameDropDownButton.Visibility = Visibility.Visible;
                     
                     System.Diagnostics.Debug.WriteLine("退出删除模式");
                 }
@@ -1246,9 +1230,9 @@ namespace GameLauncher.Pages
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"UpdateDeleteModeUI 异常: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"异常堆栈: {ex.StackTrace}");
+                System.Diagnostics.Debug.WriteLine($"异常堆栜: {ex.StackTrace}");
                 
-                // 错误恢复，强制重置到安全状态
+                // 紧急修复，强制重置到安全状态
                 try
                 {
                     _isDeleteMode = false;
@@ -1258,9 +1242,7 @@ namespace GameLauncher.Pages
                     DeleteSelectedButton.Visibility = Visibility.Collapsed;
                     CancelDeleteButton.Visibility = Visibility.Collapsed;
                     DeleteModeButton.Visibility = Visibility.Visible;
-                    CleanDuplicateGamesButton.Visibility = Visibility.Visible;
-                    ImportGamesDropDownButton.Visibility = Visibility.Visible;
-                    AddGameButton.Visibility = Visibility.Visible;
+                    AddGameDropDownButton.Visibility = Visibility.Visible;
                 }
                 catch
                 {
@@ -1420,6 +1402,7 @@ namespace GameLauncher.Pages
                                 }
                             }
                             
+
                             // 按DisplayOrder排序
                             sortedGames = sortedGames.OrderBy(g => g.DisplayOrder).ToList();
                             
@@ -1501,7 +1484,7 @@ namespace GameLauncher.Pages
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"保存游戏数据时发生异常: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"异常堆栈: {ex.StackTrace}");
+                System.Diagnostics.Debug.WriteLine($"异常堆栜: {ex.StackTrace}");
                 
                 // 不要向上抛出异常，而是记录错误并尝试通知用户
                 await ShowErrorDialog($"保存游戏数据失败: {ex.Message}");
@@ -1832,54 +1815,6 @@ namespace GameLauncher.Pages
         private async Task ImportXboxGames()
         {
             await ShowInfoDialog("Xbox 游戏导入功能即将实现");
-        }
-
-        private async Task CleanDuplicateGames()
-        {
-            try
-            {
-                var duplicateGroups = Items
-                    .GroupBy(item => item.ExecutablePath.ToLowerInvariant())
-                    .Where(group => group.Count() > 1 && !string.IsNullOrWhiteSpace(group.Key))
-                    .ToList();
-
-                var removedCount = 0;
-                if (duplicateGroups.Count > 0)
-                {
-                    foreach (var group in duplicateGroups)
-                    {
-                        var items = group.OrderBy(item => item.Title).Skip(1).ToList();
-                        foreach (var item in items)
-                        {
-                            Items.Remove(item);
-                            removedCount++;
-                        }
-                    }
-
-                    if (removedCount > 0)
-                    {
-                        await SaveGamesData();
-                        System.Diagnostics.Debug.WriteLine($"清理了 {removedCount} 个重复游戏");
-                        await ShowInfoDialog($"清理了 {removedCount} 个重复游戏");
-                    }
-                    else
-                    {
-                        await ShowInfoDialog("没有发现重复游戏");
-                    }
-                }
-                else
-                {
-                    await ShowInfoDialog("没有发现重复游戏");
-                }
-
-                // 始终刷新UI，确保显示最新状态
-                ApplyCategoryFilter();
-                UpdateCategoryGameCounts();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"清理重复游戏时出错: {ex.Message}");
-            }
         }
 
         #endregion
