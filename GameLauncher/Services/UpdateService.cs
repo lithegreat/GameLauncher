@@ -671,7 +671,7 @@ namespace GameLauncher.Services
 
                 versionInfoPanel.Children.Add(versionComparePanel);
 
-                // 预发布版本警告 - 使用SymbolIcon替代FontIcon
+                // 预发布版本警告 - 使用FontIcon或文本符号作为备选方案
                 if (result.IsPrerelease)
                 {
                     var warningPanel = new StackPanel 
@@ -681,10 +681,14 @@ namespace GameLauncher.Services
                         Spacing = 8
                     };
                     
-                    var warningIcon = new SymbolIcon(Symbol.Important)
+                    // 使用 FontIcon 作为警告图标，使用 Segoe MDL2 Assets 字体
+                    var warningIcon = new FontIcon
                     {
+                        Glyph = "\uE814", // Warning symbol from Segoe MDL2 Assets
+                        FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe MDL2 Assets"),
                         Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Orange),
-                        VerticalAlignment = VerticalAlignment.Center
+                        VerticalAlignment = VerticalAlignment.Center,
+                        FontSize = 16
                     };
                     warningPanel.Children.Add(warningIcon);
                     
@@ -877,7 +881,7 @@ namespace GameLauncher.Services
                     
                     var reasonText1 = new TextBlock 
                     { 
-                        Text = "? 应用程序正在运行中（请关闭所有实例后重试）"
+                        Text = "应用程序正在运行中（请关闭所有实例后重试）"
                     };
                     if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle5) == true)
                     {
@@ -897,7 +901,7 @@ namespace GameLauncher.Services
                     
                     var reasonText3 = new TextBlock 
                     { 
-                        Text = "? 系统权限不足"
+                        Text = "系统权限不足"
                     };
                     if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle7) == true)
                     {
@@ -907,7 +911,7 @@ namespace GameLauncher.Services
                     
                     var reasonText4 = new TextBlock 
                     { 
-                        Text = "? 磁盘空间不足"
+                        Text = "磁盘空间不足"
                     };
                     if (App.Current?.Resources?.TryGetValue("CaptionTextBlockStyle", out var captionStyle8) == true)
                     {
