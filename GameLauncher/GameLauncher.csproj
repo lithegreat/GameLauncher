@@ -80,14 +80,14 @@
   <PropertyGroup>
     <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
     <AppxAutoIncrementPackageRevision>False</AppxAutoIncrementPackageRevision>
-    <GenerateTestCertificate>True</GenerateTestCertificate>
-    <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
+    <GenerateTestCertificate>False</GenerateTestCertificate>
+    <AppxPackageSigningEnabled>False</AppxPackageSigningEnabled>
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
     <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
     <AppxSymbolPackageEnabled>False</AppxSymbolPackageEnabled>
     <GenerateTestArtifacts>True</GenerateTestArtifacts>
-    <AppxBundle>Auto</AppxBundle>
+    <AppxBundle>Always</AppxBundle>
     <AppxBundlePlatforms>x64</AppxBundlePlatforms>
-    <PackageCertificateKeyFile>GameLauncher_TemporaryKey.pfx</PackageCertificateKeyFile>
+    <DefaultLanguage>zh-Hans</DefaultLanguage>
   </PropertyGroup>
 </Project>
